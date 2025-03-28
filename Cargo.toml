@@ -3,9 +3,14 @@ name = "ProjetAnnuel"
 version = "0.1.0"
 edition = "2021"
 
-[lib]
+[main]
 name = "projetannuel"
 crate-type = ["cdylib"]
 
+[[bin]]
+name = "projetannuel"
+path = "src/main.rs"
+
 [dependencies]
 pyo3 = {version= "0.24.0", features = ["extension-module"] }
+rand = "*"
