@@ -7,23 +7,51 @@ struct LinearModel {
     weights: Vec<f64>,
 }
 
+enum Labels {
+    Str(Vec<String>),
+    Float(Vec<f64>),
+}
+
+// Permet d'utiliser directement Vec<&str> sans intervention de l'utilisateur
+impl From<Vec<&str>> for Labels {
+    fn from(labels: Vec<&str>) -> Self {
+        Labels::Str(labels.into_iter().map(|s| s.to_string()).collect())
+    }
+}
+
+// Permet d'utiliser directement Vec<f64> sans intervention de l'utilisateur
+impl From<Vec<f64>> for Labels {
+    fn from(values: Vec<f64>) -> Self {
+        Labels::Float(values)
+    }
+}
+
 impl LinearModel {
-    fn new(x: Vec<Vec<f64>>, y: Vec<&str>) -> Self {
-        let mut labels_norm = Vec::new();
-        let first_label = y[0];
-        for i in 0..y.len() {
-            if y[i] == first_label {
-                labels_norm.push(1.0);
-            } else {
-                labels_norm.push(-1.0);
+    fn new<T: Into<Labels>>(x: Vec<Vec<f64>>, y: T) -> Self {
+
+        let labels_norm = match y.into() {
+            Labels::Str(labels) => {
+                let first_label = &labels[0];
+                labels
+                    .iter()
+                    .map(|label| {
+                        if *label == *first_label {
+                            1.0
+                        } else {
+                            -1.0
+                        }
+                    })
+                    .collect()
             }
-        }
+            Labels::Float(values) => values,
+        };
 
         let mut weights = Vec::new();
         let mut rng = rand::thread_rng();
-        for _ in 0..x[0].len() + 1 {
+        for _ in 0..x[0].len() {
             weights.push(rng.gen_range(-1.0..1.0));
         }
+        weights.push(0.0);
         
         LinearModel {
             x: x,
@@ -32,28 +60,30 @@ impl LinearModel {
         }
     }
 
-    fn train(&mut self, modele_type: &str, epochs: usize, learning_rate: f64) {
-        if *modele_type == *"classification" {
-            for _ in 0..epochs {
-                let mut rng = rand::thread_rng();
-                let i = rng.gen_range(0..self.x.len());
+    fn train_classification(&mut self, epochs: usize, learning_rate: f64) {
+        for _ in 0..epochs {
+            let mut rng = rand::thread_rng();
+            let i = rng.gen_range(0..self.x.len());
 
-                let random_x = self.x[i].clone();
-                let prediction = self.predict(random_x.clone());
-                let error = self.y[i] - prediction;
+            let random_x = self.x[i].clone();
+            let prediction = self.predict(random_x.clone());
+            let error = self.y[i] - prediction;
 
-                for j in 0..self.weights.len() - 1 {
-                    self.weights[j] += learning_rate * error * random_x[j];
-                }
-                let last_index = self.weights.len() - 1;
-                self.weights[last_index] += learning_rate * error * 1.0; // Biais                
+            for j in 0..self.weights.len() - 1 {
+                self.weights[j] += learning_rate * error * random_x[j];
             }
-        } else if *modele_type == *"regression" {
-            // Regression
+            let last_index = self.weights.len() - 1;
+            self.weights[last_index] += learning_rate * error * 1.0; // Biais                
         }
 
         println!("Weights: {:?}", self.weights);
     }
+
+    // fn train_regression($mut self) {
+    //     // for j in 0..self.weights.len() - 1 {
+    //     //     self.weights[j] = 
+    //     // }
+    // }
 
 
     fn predict(&self, x: Vec<f64>) -> f64 {
@@ -77,8 +107,9 @@ impl LinearModel {
 fn main() {
     let x = vec![vec![1.0, 0.0], vec![0.0, 1.0], vec![0.0, 0.0], vec![1.0, 1.0]];
     let y = vec!["true", "true", "false", "true"];
+    // let y = vec![1.0, 1.0, -1.0, 1.0];
     let mut model = LinearModel::new(x, y);
-    model.train("classification", 1000000, 0.001);
+    model.train_classification(1000000, 0.001);
 
     println!("Prediction: {:?}", model.predict(vec![1.0, 0.0]));
     println!("Prediction: {:?}", model.predict(vec![0.0, 1.0]));
