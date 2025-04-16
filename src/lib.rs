@@ -1,6 +1,11 @@
 use pyo3::prelude::*;
+use pyo3::types::{ PyList, PyString, PyFloat };
+use pyo3::exceptions::PyTypeError;
+use pyo3::types::PyAny;
+use pyo3::FromPyObject;
 use rand::Rng;
 
+#[pyclass]
 struct LinearModel {
     x: Vec<Vec<f64>>,
     y: Vec<f64>,
@@ -8,44 +13,70 @@ struct LinearModel {
     label_map: Option<(String, String)>,
 }
 
-enum Labels {
+#[pyclass]
+enum LabelsEnum {
     Str(Vec<String>),
     Float(Vec<f64>),
 }
 
-impl From<Vec<&str>> for Labels {
+#[pyfunction]
+fn StringLabels(labels: Vec<String>) -> LabelsEnum {
+    LabelsEnum::Str(labels)
+}
+
+#[pyfunction]
+fn FloatLabels(labels: Vec<f64>) -> LabelsEnum {
+    LabelsEnum::Float(labels)
+}
+
+impl From<Vec<&str>> for LabelsEnum {
     fn from(labels: Vec<&str>) -> Self {
-        Labels::Str(labels.into_iter().map(|s| s.to_string()).collect())
+        LabelsEnum::Str(
+            labels
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect()
+        )
     }
 }
 
-impl From<Vec<f64>> for Labels {
+impl From<Vec<f64>> for LabelsEnum {
     fn from(values: Vec<f64>) -> Self {
-        Labels::Float(values)
+        LabelsEnum::Float(values)
     }
 }
 
-impl From<Vec<i32>> for Labels {
+impl From<Vec<i32>> for LabelsEnum {
     fn from(values: Vec<i32>) -> Self {
-        Labels::Float(values.into_iter().map(|v| v as f64).collect())
+        LabelsEnum::Float(
+            values
+                .into_iter()
+                .map(|v| v as f64)
+                .collect()
+        )
     }
 }
 
+#[pymethods]
 impl LinearModel {
-
+    
     /// Creates a new LinearModel instance.
     /// The `x` parameter is a 2D vector representing the input features,
     /// and the `y` parameter can be a vector of strings or floats representing the labels.
     /// The function normalizes the labels to -1 and 1 for classification tasks.
-
-    fn new<T: Into<Labels>>(x: Vec<Vec<f64>>, y: T) -> Self {
+    
+    #[new]
+    fn new(x: Vec<Vec<f64>>, y: &LabelsEnum) -> Self {
         let mut label_map = None;
 
-        let labels_norm = match y.into() {
-            Labels::Str(labels) => {
+        let labels_norm = match y {
+            LabelsEnum::Str(labels) => {
                 let first_label = labels[0].clone();
-                let second_label = labels.iter().find(|l| **l != first_label)
-                    .unwrap_or(&first_label).clone();
+                let second_label = labels
+                    .iter()
+                    .find(|l| **l != first_label)
+                    .unwrap_or(&first_label)
+                    .clone();
                 label_map = Some((first_label.clone(), second_label.clone()));
 
                 labels
@@ -53,7 +84,7 @@ impl LinearModel {
                     .map(|label| if *label == first_label { 1.0 } else { -1.0 })
                     .collect()
             }
-            Labels::Float(values) => {
+            LabelsEnum::Float(values) => {
                 let mut uniq: Vec<f64> = values.clone();
                 uniq.sort_by(|a, b| a.partial_cmp(b).unwrap());
                 uniq.dedup();
@@ -65,7 +96,7 @@ impl LinearModel {
                         .map(|v| if *v == uniq[1] { 1.0 } else { -1.0 })
                         .collect()
                 } else {
-                    values
+                    values.clone()
                 }
             }
         };
@@ -96,7 +127,7 @@ impl LinearModel {
             for j in 0..self.weights.len() - 1 {
                 self.weights[j] += learning_rate * error * random_x[j];
             }
-            let last_index = self.weights.len() - 1; 
+            let last_index = self.weights.len() - 1;
             self.weights[last_index] += learning_rate * error;
         }
 
@@ -135,18 +166,18 @@ impl LinearModel {
             sum += x_with_bias[i] * self.weights[i];
         }
 
-        if sum > 0.0 { 1.0 } else { -1.0 }
+        if sum > 0.0 {
+            1.0
+        } else {
+            -1.0
+        }
     }
 
     fn predict(&self, x: Vec<f64>) -> String {
         let prediction = self.predict_value(x);
 
         if let Some((pos, neg)) = &self.label_map {
-            if prediction > 0.0 {
-                pos.clone()
-            } else {
-                neg.clone()
-            }
+            if prediction > 0.0 { pos.clone() } else { neg.clone() }
         } else {
             prediction.to_string()
         }
@@ -291,68 +322,18 @@ fn main() {
     let x = vec![vec![1.0, 0.0], vec![0.0, 1.0], vec![0.0, 0.0], vec![1.0, 1.0]];
     // let y = vec!["true", "true", "false", "true"]; // OR
     let y = vec!["false", "false", "false", "true"]; // AND
-    // let y = vec![1, 1, 0, 1]; 
+    // let y = vec![1, 1, 0, 1];
 
     println!("X: {:?}", x);
     println!("Y: {:?}", y);
 
-    let mut model = LinearModel::new(x, y);
+    let mut model = LinearModel::new(x, &LabelsEnum::from(y));
     model.train_classification(1000000, 0.001);
 
     println!("Prediction: {:?}", model.predict(vec![1.0, 0.0]));
     println!("Prediction: {:?}", model.predict(vec![0.0, 1.0]));
     println!("Prediction: {:?}", model.predict(vec![0.0, 0.0]));
     println!("Prediction: {:?}", model.predict(vec![1.0, 1.0]));
-
-    println!("Démonstration de régression linéaire");
-    
-    // Exemple simple
-    demo_simple_regression();
-    
-    // Exemple multivarié
-    demo_multivariate_regression();
-    
-    // Exemple avec labels string
-    // demo_string_labels();
-    
-    println!("Tous les exemples ont été exécutés avec succès!");
-    
-}
-
-fn demo_simple_regression() {
-    println!("\n=== Régression simple (y = 2*x) ===");
-    
-    let x = vec![
-        vec![1.0],
-        vec![2.0],
-        vec![3.0],
-        vec![4.0],
-    ];
-    let y = vec![2.0, 4.0, 6.0, 8.0];
-    
-    let mut model = LinearModel::new(x, y);
-    model.train_regression();
-    
-    println!("Poids obtenus: {:?}", model.weights);
-    println!("Poids attendus: ~[2.0]");
-}
-
-fn demo_multivariate_regression() {
-    println!("\n=== Régression multivariée (y = 1 + 2*x1 + 3*x2) ===");
-    
-    let x = vec![
-        vec![1.0, 1.0],
-        vec![1.0, 2.0],
-        vec![2.0, 1.0],
-        vec![2.0, 2.0],
-    ];
-    let y = vec![6.0, 9.0, 8.0, 11.0];
-    
-    let mut model = LinearModel::new(x, y);
-    model.train_regression();
-    
-    println!("Poids obtenus: {:?}", model.weights);
-    println!("Poids attendus: ~[2.0, 3.0] (plus un biais)");
 }
 
 
@@ -368,5 +349,12 @@ fn sum_as_string(a: usize, b: usize) -> PyResult<String> {
 /// import the module.
 #[pymodule]
 fn projetannuel(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(sum_as_string, m)?)?;
+
+    m.add_class::<LinearModel>()?;
+    //m.add_class::<LabelsEnum>()?;
+    m.add_function(wrap_pyfunction!(FloatLabels,m)?)?;
+    m.add_function(wrap_pyfunction!(StringLabels,m)?)?;
+
     Ok(())
 }
