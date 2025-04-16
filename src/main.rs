@@ -32,6 +32,12 @@ impl From<Vec<i32>> for Labels {
 }
 
 impl LinearModel {
+
+    /// Creates a new LinearModel instance.
+    /// The `x` parameter is a 2D vector representing the input features,
+    /// and the `y` parameter can be a vector of strings or floats representing the labels.
+    /// The function normalizes the labels to -1 and 1 for classification tasks.
+
     fn new<T: Into<Labels>>(x: Vec<Vec<f64>>, y: T) -> Self {
         let mut label_map = None;
 
@@ -76,6 +82,8 @@ impl LinearModel {
         }
     }
 
+    /// Trains the model for a specified number of epochs using the given learning rate.
+    /// The training process involves adjusting the weights based on the input features and labels.
     fn train_classification(&mut self, epochs: usize, learning_rate: f64) {
         for _ in 0..epochs {
             let mut rng = rand::thread_rng();
@@ -95,6 +103,8 @@ impl LinearModel {
         // println!("Weights: {:?}", self.weights);
     }
 
+    /// Trains the model using linear regression.
+    /// The training process involves calculating the weights using the normal equation.
     fn train_regression(&mut self) {
         let mut x = self.x.clone();
 
@@ -114,7 +124,8 @@ impl LinearModel {
         println!("Weights: {:?}", self.weights);
     }
 
-
+    /// Predicts the output for a given input vector `x` using the trained model.
+    /// The function calculates the weighted sum of the input features and applies the activation function.
     fn predict_value(&self, x: Vec<f64>) -> f64 {
         let mut sum = 0.0;
         let mut x_with_bias = x.clone();
@@ -302,7 +313,7 @@ fn main() {
     demo_multivariate_regression();
     
     // Exemple avec labels string
-    demo_string_labels();
+    // demo_string_labels();
     
     println!("Tous les exemples ont été exécutés avec succès!");
     
