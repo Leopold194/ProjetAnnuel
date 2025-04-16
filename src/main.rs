@@ -108,6 +108,8 @@ fn main() {
     let x = vec![vec![1.0, 0.0], vec![0.0, 1.0], vec![0.0, 0.0], vec![1.0, 1.0]];
     let y = vec!["true", "true", "false", "true"];
     // let y = vec![1.0, 1.0, -1.0, 1.0];
+    println!("x: {:?}", x);
+    println!("y: {:?}", y);
     let mut model = LinearModel::new(x, y);
     model.train_classification(1000000, 0.001);
 
