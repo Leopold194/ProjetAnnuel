@@ -59,6 +59,12 @@ impl From<Vec<i32>> for LabelsEnum {
 
 #[pymethods]
 impl LinearModel {
+    
+    /// Creates a new LinearModel instance.
+    /// The `x` parameter is a 2D vector representing the input features,
+    /// and the `y` parameter can be a vector of strings or floats representing the labels.
+    /// The function normalizes the labels to -1 and 1 for classification tasks.
+    
     #[new]
     fn new(x: Vec<Vec<f64>>, y: &LabelsEnum) -> Self {
         let mut label_map = None;
@@ -107,6 +113,8 @@ impl LinearModel {
         }
     }
 
+    /// Trains the model for a specified number of epochs using the given learning rate.
+    /// The training process involves adjusting the weights based on the input features and labels.
     fn train_classification(&mut self, epochs: usize, learning_rate: f64) {
         for _ in 0..epochs {
             let mut rng = rand::thread_rng();
@@ -126,6 +134,29 @@ impl LinearModel {
         // println!("Weights: {:?}", self.weights);
     }
 
+    /// Trains the model using linear regression.
+    /// The training process involves calculating the weights using the normal equation.
+    fn train_regression(&mut self) {
+        let mut x = self.x.clone();
+
+        // Ajout du biais
+        for i in 0..x.len(){
+            x[i].push(1.0);
+        }
+        let y = self.y.clone(); 
+
+        let xt: Vec<Vec<f64>> = transpose(&x);
+
+        let xtx: Vec<Vec<f64>> = matmatmul(&xt, &x);
+        let xtx_inv: Vec<Vec<f64>> = inverse(xtx.clone());
+        let xtx_inv_xt: Vec<Vec<f64>> = matmatmul(&xtx_inv, &xt);
+        self.weights = matvecmul(&xtx_inv_xt, &y);
+        
+        println!("Weights: {:?}", self.weights);
+    }
+
+    /// Predicts the output for a given input vector `x` using the trained model.
+    /// The function calculates the weighted sum of the input features and applies the activation function.
     fn predict_value(&self, x: Vec<f64>) -> f64 {
         let mut sum = 0.0;
         let mut x_with_bias = x.clone();
@@ -153,6 +184,140 @@ impl LinearModel {
     }
 }
 
+
+fn matmatmul(a: &Vec<Vec<f64>>, b: &Vec<Vec<f64>>) -> Vec<Vec<f64>> {
+    if a[0].len() != b.len() {
+        panic!("Matrix dimensions do not match for multiplication.");
+    }
+    let mut result = vec![vec![0.0; b[0].len()]; a.len()];
+    for i in 0..a.len() {
+        for j in 0..b[0].len() {
+            for k in 0..b.len() {
+                result[i][j] += a[i][k] * b[k][j];
+            }
+        }
+    }
+    return result
+}
+
+fn matvecmul(a: &Vec<Vec<f64>>,b:&Vec<f64>)->Vec<f64>{
+    if a[0].len() != b.len() {
+        panic!("Matrix and vector dimensions do not match for multiplication.");
+    }
+    let mut result = vec![0.0; a.len()];
+    for i in 0..a.len() {
+        for j in 0..b.len() {
+            result[i] += a[i][j] * b[j];
+        }
+    }
+    return result
+}
+
+fn transpose(matrix:&Vec<Vec<f64>>) -> Vec<Vec<f64>> {
+    let mut transposed = vec![vec![0.0; matrix.len()]; matrix[0].len()];
+    for i in 0..matrix.len() {
+        for j in 0..matrix[0].len() {
+            transposed[j][i] = matrix[i][j];
+        }
+    }
+    transposed
+}
+
+fn inverse(mut matrix: Vec<Vec<f64>>) -> Vec<Vec<f64>> {
+    // Inversion de matrice, copie une fois en mémoire la matrice (pour avoir les deux en meme temps)
+
+    let mut result = vec![vec![0.0; matrix.len()]; matrix.len()];
+    let mut pivot:f64=0.0;
+
+    for i in 0..matrix.len() {
+        result[i][i] = 1.0;
+    }
+ 
+    for i in 0..matrix.len(){
+        //récupération du pivot
+        pivot = matrix[i][i];
+        for j in i..matrix.len(){
+            if matrix[j][i].abs()> pivot.abs(){
+                pivot = matrix[j][i];
+                matrix.swap(i, j);
+                result.swap(i, j);
+            }
+        }
+
+        if pivot==0.0{
+            panic!("La matrice n'est pas inversible");
+        }
+
+        // normalisation ligne
+        matrix[i].iter_mut().for_each(|x| *x /= pivot);
+        result[i].iter_mut().for_each(|x| *x /= pivot);
+        
+        //normalisation colonne
+        for j in 0..matrix.len(){
+            if j!=i{
+                let ratio = matrix[j][i];
+                for k in 0..matrix[0].len(){
+                    matrix[j][k] -= ratio * matrix[i][k];
+                    result[j][k] -= ratio * result[i][k];
+                }
+            }
+        }    
+    }
+    result
+}
+
+fn calc_determinant(matrice: Vec<Vec<f64>>) -> f64 {
+    //Utilisation pivot de Gauss pour calculer le déterminant.
+    //Modifications sur la matrice d'origine, donc faut pas passer le paramètre par référence.
+    //nvm je crée une copie au début comme ca on est bons.
+
+    let mut matrix: Vec<Vec<f64>> = matrice.clone();
+    
+    if matrix.len() != matrix[0].len() {
+        panic!("Matrix is not square.");
+    }
+
+    let mut det:f64=1.0;
+    let n = matrix.len();
+
+    for i in 0..n{
+        // Recherche du pivot
+
+        if matrix[i][i] == 0.0 {
+            let mut found = false;
+            for k in i+1..n{
+                if matrix[k][i] != 0.0{
+                    matrix.swap(i, k);
+                    det *=-1.0;
+                    found = true;
+                    break;
+                }
+            }
+            
+            // If no non-zero element is found, the determinant is zero.    
+            if found==false{
+                return 0.0;
+            }
+
+        }
+        //application du pivot
+        for j in i+1..n{
+            let ratio = matrix[j][i] / matrix[i][i];
+            for k in i..n{
+                matrix[j][k] -= ratio * matrix[i][k];
+            }
+        }
+
+    }
+    //calcul déterminant
+    for i in 0..n{
+        det *= matrix[i][i];
+    }
+    
+    det
+}
+
+
 fn main() {
     let x = vec![vec![1.0, 0.0], vec![0.0, 1.0], vec![0.0, 0.0], vec![1.0, 1.0]];
     // let y = vec!["true", "true", "false", "true"]; // OR
@@ -170,6 +335,8 @@ fn main() {
     println!("Prediction: {:?}", model.predict(vec![0.0, 0.0]));
     println!("Prediction: {:?}", model.predict(vec![1.0, 1.0]));
 }
+
+
 
 /// Formats the sum of two numbers as string.
 #[pyfunction]
