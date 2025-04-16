@@ -80,8 +80,21 @@ impl LinearModel {
     }
 
     fn train_regression(&mut self) {
-        //let xt: Vec<Vec<f64>> = transpose(self.x);
-        //self.weights = matvecmul(matmatmul(inverse(matmatmul(xt,self.x)),xt),self.y);
+        let mut x = self.x.clone();
+
+        // Ajout du biais
+        for i in 0..x.len(){
+            x[i].push(1.0);
+        }
+        let y = self.y.clone(); 
+
+        let xt: Vec<Vec<f64>> = transpose(&x);
+
+        let xtx: Vec<Vec<f64>> = matmatmul(&xt, &x);
+        let xtx_inv: Vec<Vec<f64>> = inverse(xtx.clone());
+        let xtx_inv_xt: Vec<Vec<f64>> = matmatmul(&xtx_inv, &xt);
+        self.weights = matvecmul(&xtx_inv_xt, &y);
+        
         println!("Weights: {:?}", self.weights);
     }
 
@@ -105,7 +118,7 @@ impl LinearModel {
 }
 
 
-fn matmatmul(a: Vec<Vec<f64>>, b: Vec<Vec<f64>>) -> Vec<Vec<f64>> {
+fn matmatmul(a: &Vec<Vec<f64>>, b: &Vec<Vec<f64>>) -> Vec<Vec<f64>> {
     if a[0].len() != b.len() {
         panic!("Matrix dimensions do not match for multiplication.");
     }
@@ -120,7 +133,7 @@ fn matmatmul(a: Vec<Vec<f64>>, b: Vec<Vec<f64>>) -> Vec<Vec<f64>> {
     return result
 }
 
-fn matvecmul(a: Vec<Vec<f64>>,b:Vec<f64>)->Vec<f64>{
+fn matvecmul(a: &Vec<Vec<f64>>,b:&Vec<f64>)->Vec<f64>{
     if a[0].len() != b.len() {
         panic!("Matrix and vector dimensions do not match for multiplication.");
     }
@@ -133,7 +146,7 @@ fn matvecmul(a: Vec<Vec<f64>>,b:Vec<f64>)->Vec<f64>{
     return result
 }
 
-fn transpose(matrix: Vec<Vec<f64>>) -> Vec<Vec<f64>> {
+fn transpose(matrix:&Vec<Vec<f64>>) -> Vec<Vec<f64>> {
     let mut transposed = vec![vec![0.0; matrix.len()]; matrix[0].len()];
     for i in 0..matrix.len() {
         for j in 0..matrix[0].len() {
@@ -238,12 +251,6 @@ fn calc_determinant(matrice: Vec<Vec<f64>>) -> f64 {
 }
 
 
-fn print_matrix(matrix: &[Vec<f64>]) {
-    for row in matrix {
-        println!("{:?}", row);
-    }
-}
-
 fn main() {
     let x = vec![vec![1.0, 0.0], vec![0.0, 1.0], vec![0.0, 0.0], vec![1.0, 1.0]];
     let y = vec!["true", "true", "false", "true"];
@@ -257,74 +264,59 @@ fn main() {
     println!("Prediction: {:?}", model.predict(vec![0.0, 1.0]));
     println!("Prediction: {:?}", model.predict(vec![0.0, 0.0]));
     println!("Prediction: {:?}", model.predict(vec![1.0, 1.0]));
-    
-    let a = vec![
-        vec![1.0, 2.0, 3.0],
-        vec![4.0, 5.0, 6.0],
-    ];
-    let b = vec![
-        vec![7.0, 8.0],
-        vec![9.0, 10.0],
-        vec![11.0, 12.0],
-    ];
-    let mat_result = matmatmul(a, b);
-    println!("Matrix multiplication result: {:?}", mat_result);
 
-    // Test matvecmul
-    let matrix = vec![
-        vec![1.0, 2.0, 3.0],
-        vec![4.0, 5.0, 6.0],
-        vec![7.0, 8.0, 9.0],
-    ];
-    let vector = vec![2.0, 1.0, 3.0];
-    let vec_result = matvecmul(matrix, vector);
-    println!("Matrix-vector multiplication result: {:?}", vec_result);
-
-    // Example 2: 3x3 matrix
-    let matrix_3x3 = vec![
-        vec![1.0, 2.0, 3.0],
-        vec![4.0, 5.0, 6.0],
-        vec![7.0, 8.0, 9.0]
-    ];
-    println!("3x3 matrix: {:?}", matrix_3x3);
-    println!("Determinant: {}\n", calc_determinant(matrix_3x3.clone())); // Expected: 0 (singular matrix)
-
-    // Example 3: Another 3x3 matrix
-    let matrix_3x3_alt = vec![
-        vec![2.0, -1.0, 3.0],
-        vec![0.0, 4.0, -2.0],
-        vec![1.0, 0.0, 5.0]
-    ];
-    println!("Alternative 3x3 matrix: {:?}", matrix_3x3_alt);
-    println!("Determinant: {}", calc_determinant(matrix_3x3_alt)); // Expected: 30
-
-    // Matrice 2x2
-    let matrix_2x2 = vec![
-        vec![1.0, 2.0],
-        vec![3.0, 4.0]
-    ];
+    println!("Démonstration de régression linéaire");
     
-    println!("Matrice 2x2 originale:");
-    print_matrix(&matrix_2x2);
+    // Exemple simple
+    demo_simple_regression();
     
-    let inverse_2x2 = inverse(matrix_2x2);
-    println!("\nMatrice inverse 2x2:");
-    print_matrix(&inverse_2x2);
+    // Exemple multivarié
+    demo_multivariate_regression();
     
-    // Matrice 3x3
-    let matrix_3x3 = vec![
-        vec![1.0, 2.0, 3.0],
-        vec![0.0, 1.0, 4.0],
-        vec![5.0, 6.0, 0.0]
-    ];
+    // Exemple avec labels string
+    demo_string_labels();
     
-    println!("\nMatrice 3x3 originale:");
-    print_matrix(&matrix_3x3);
+    println!("Tous les exemples ont été exécutés avec succès!");
     
-    let inverse_3x3 = inverse(matrix_3x3);
-    println!("\nMatrice inverse 3x3:");
-    print_matrix(&inverse_3x3);
 }
+
+fn demo_simple_regression() {
+    println!("\n=== Régression simple (y = 2*x) ===");
+    
+    let x = vec![
+        vec![1.0],
+        vec![2.0],
+        vec![3.0],
+        vec![4.0],
+    ];
+    let y = vec![2.0, 4.0, 6.0, 8.0];
+    
+    let mut model = LinearModel::new(x, y);
+    model.train_regression();
+    
+    println!("Poids obtenus: {:?}", model.weights);
+    println!("Poids attendus: ~[2.0]");
+}
+
+fn demo_multivariate_regression() {
+    println!("\n=== Régression multivariée (y = 1 + 2*x1 + 3*x2) ===");
+    
+    let x = vec![
+        vec![1.0, 1.0],
+        vec![1.0, 2.0],
+        vec![2.0, 1.0],
+        vec![2.0, 2.0],
+    ];
+    let y = vec![6.0, 9.0, 8.0, 11.0];
+    
+    let mut model = LinearModel::new(x, y);
+    model.train_regression();
+    
+    println!("Poids obtenus: {:?}", model.weights);
+    println!("Poids attendus: ~[2.0, 3.0] (plus un biais)");
+}
+
+
 
 /// Formats the sum of two numbers as string.
 #[pyfunction]
