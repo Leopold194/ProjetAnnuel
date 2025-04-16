@@ -127,7 +127,22 @@ impl LinearModel {
         if sum > 0.0 { 1.0 } else { -1.0 }
     }
 
+    fn predict_regression(&self, x: Vec<f64>) -> f64 {
+        let mut x_with_bias: Vec<f64> = x.clone();
+        x_with_bias.push(1.0);
+        let y = vecvecmul(&self.weights,&x_with_bias);
+        let mut value:f64=0.0;
+
+        for i in 0..y.len(){
+            value+=y[i];
+        }
+
+        value
+
+    }
+
     fn predict(&self, x: Vec<f64>) -> String {
+  
         let prediction = self.predict_value(x);
 
         if let Some((pos, neg)) = &self.label_map {
@@ -142,6 +157,19 @@ impl LinearModel {
     }
 }
 
+fn vecvecmul(a: &Vec<f64>, b: &Vec<f64>) -> Vec<f64> {
+    if a.len() != b.len() {
+        panic!("Vector dimensions do not match for multiplication.");
+    }
+
+    let mut result = vec![0.0; a.len()];
+
+    for i in 0..a.len() {
+        result[i] = a[i] * b[i];
+    }
+
+    return result
+}
 
 fn matmatmul(a: &Vec<Vec<f64>>, b: &Vec<Vec<f64>>) -> Vec<Vec<f64>> {
     if a[0].len() != b.len() {
@@ -224,57 +252,6 @@ fn inverse(mut matrix: Vec<Vec<f64>>) -> Vec<Vec<f64>> {
     result
 }
 
-fn calc_determinant(matrice: Vec<Vec<f64>>) -> f64 {
-    //Utilisation pivot de Gauss pour calculer le déterminant.
-    //Modifications sur la matrice d'origine, donc faut pas passer le paramètre par référence.
-    //nvm je crée une copie au début comme ca on est bons.
-
-    let mut matrix: Vec<Vec<f64>> = matrice.clone();
-    
-    if matrix.len() != matrix[0].len() {
-        panic!("Matrix is not square.");
-    }
-
-    let mut det:f64=1.0;
-    let n = matrix.len();
-
-    for i in 0..n{
-        // Recherche du pivot
-
-        if matrix[i][i] == 0.0 {
-            let mut found = false;
-            for k in i+1..n{
-                if matrix[k][i] != 0.0{
-                    matrix.swap(i, k);
-                    det *=-1.0;
-                    found = true;
-                    break;
-                }
-            }
-            
-            // If no non-zero element is found, the determinant is zero.    
-            if found==false{
-                return 0.0;
-            }
-
-        }
-        //application du pivot
-        for j in i+1..n{
-            let ratio = matrix[j][i] / matrix[i][i];
-            for k in i..n{
-                matrix[j][k] -= ratio * matrix[i][k];
-            }
-        }
-
-    }
-    //calcul déterminant
-    for i in 0..n{
-        det *= matrix[i][i];
-    }
-    
-    det
-}
-
 
 fn main() {
     let x = vec![vec![1.0, 0.0], vec![0.0, 1.0], vec![0.0, 0.0], vec![1.0, 1.0]];
@@ -292,56 +269,39 @@ fn main() {
     println!("Prediction: {:?}", model.predict(vec![0.0, 1.0]));
     println!("Prediction: {:?}", model.predict(vec![0.0, 0.0]));
     println!("Prediction: {:?}", model.predict(vec![1.0, 1.0]));
-
-    println!("Démonstration de régression linéaire");
     
-    // Exemple simple
-    demo_simple_regression();
-    
-    // Exemple multivarié
-    demo_multivariate_regression();
-    
-    // Exemple avec labels string
-    demo_string_labels();
-    
-    println!("Tous les exemples ont été exécutés avec succès!");
-    
-}
-
-fn demo_simple_regression() {
-    println!("\n=== Régression simple (y = 2*x) ===");
-    
-    let x = vec![
+    println!("===================");
+    println!("Régression Linéaire");
+    let x_train = vec![
         vec![1.0],
         vec![2.0],
         vec![3.0],
         vec![4.0],
     ];
-    let y = vec![2.0, 4.0, 6.0, 8.0];
-    
-    let mut model = LinearModel::new(x, y);
-    model.train_regression();
-    
-    println!("Poids obtenus: {:?}", model.weights);
-    println!("Poids attendus: ~[2.0]");
-}
+    let y_train = vec![5.0, 7.0, 9.0, 11.0];
 
-fn demo_multivariate_regression() {
-    println!("\n=== Régression multivariée (y = 1 + 2*x1 + 3*x2) ===");
+    // Création et entraînement du modèle
+    let mut model = LinearModel::new(x_train, y_train);
+    println!("Poids avant entraînement: {:?}", model.weights);
     
-    let x = vec![
-        vec![1.0, 1.0],
-        vec![1.0, 2.0],
-        vec![2.0, 1.0],
-        vec![2.0, 2.0],
-    ];
-    let y = vec![6.0, 9.0, 8.0, 11.0];
-    
-    let mut model = LinearModel::new(x, y);
     model.train_regression();
+    println!("Poids après entraînement: {:?}", model.weights);
+    println!("(Devrait être proche de [2.0, 3.0] - coefficient puis biais)");
+
+    // Tests de prédiction
+    let test_cases = vec![
+        (vec![0.0], 3.0),  // 3 + 2*0 = 3
+        (vec![1.5], 6.0),  // 3 + 2*1.5 = 6
+        (vec![5.0], 13.0), // 3 + 2*5 = 13
+    ];
+
+    for (input, expected) in test_cases {
+        let prediction = model.predict_regression(input.clone());
+        println!("Prédiction pour {:?}: {:.2} (attendu: {})", input, prediction, expected);
+        assert!((prediction - expected).abs() < 0.01);
+    }
+
     
-    println!("Poids obtenus: {:?}", model.weights);
-    println!("Poids attendus: ~[2.0, 3.0] (plus un biais)");
 }
 
 
