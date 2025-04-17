@@ -104,10 +104,14 @@ impl LinearModel {
         }
         let y = self.y.clone(); 
 
+        println!("X: {:?}", x);
+        println!("Y: {:?}", y);
+
         let xt: Vec<Vec<f64>> = transpose(&x);
 
         let xtx: Vec<Vec<f64>> = matmatmul(&xt, &x);
-        let xtx_inv: Vec<Vec<f64>> = inverse(xtx.clone());
+        let call: &str = "Moore-Penrose";
+        let xtx_inv: Vec<Vec<f64>> = inverse(xtx.clone(), &call);
         let xtx_inv_xt: Vec<Vec<f64>> = matmatmul(&xtx_inv, &xt);
         self.weights = matvecmul(&xtx_inv_xt, &y);
         
@@ -209,7 +213,7 @@ fn transpose(matrix:&Vec<Vec<f64>>) -> Vec<Vec<f64>> {
     transposed
 }
 
-fn inverse(mut matrix: Vec<Vec<f64>>) -> Vec<Vec<f64>> {
+fn inverse(mut matrix: Vec<Vec<f64>>, call: &str) -> Vec<Vec<f64>> {
     // Inversion de matrice, copie une fois en mémoire la matrice (pour avoir les deux en meme temps)
 
     let mut result = vec![vec![0.0; matrix.len()]; matrix.len()];
@@ -231,6 +235,9 @@ fn inverse(mut matrix: Vec<Vec<f64>>) -> Vec<Vec<f64>> {
         }
 
         if pivot==0.0{
+            if call=="Moore-Penrose"{
+                panic!("La matrice possède des colonnes linéairements dépendantes");
+            }
             panic!("La matrice n'est pas inversible");
         }
 
@@ -301,13 +308,44 @@ fn main() {
         assert!((prediction - expected).abs() < 0.01);
     }
 
+    println!("=== TEST 1: Cas unidimensionnel ===");
+    let x1 = vec![
+        vec![1.0],
+        vec![2.0],
+    ];
+    let y1 = vec![2.0, 3.0];
+
+    let mut model1 = LinearModel::new(x1, y1);
+    model1.train_regression();
+    
+    println!("Poids obtenus: {:?}", model1.weights);
+    println!("Prédiction pour x=1.5: {:.2}", model1.predict_regression(vec![1.5]));
+    println!("Prédiction pour x=3.0: {:.2}", model1.predict_regression(vec![3.0]));
+
+    println!("\n=== TEST 2: Cas bidimensionnel ===");
+    
+    let x2 = vec![
+        vec![1.0, 1.0],
+        vec![2.0, 2.0],
+        vec![3.0, 3.0]
+    ];
+
+    let y2 = vec![1.0,2.0,3.0];
+    let mut model2 = LinearModel::new(x2, y2);
+    model2.train_regression();
+    
+    println!("Poids obtenus: {:?}", model2.weights);
+    println!("Prédiction pour [1.0, 1.0]: {:.2}", model2.predict_regression(vec![1.0, 1.0]));
+    println!("Prédiction pour [2.0, 1.5]: {:.2}", model2.predict_regression(vec![2.0, 1.5]));
+    println!("Prédiction pour [3.0, 1.0]: {:.2}", model2.predict_regression(vec![3.0, 1.0]));
+
     
 }
 
 
 
 /// Formats the sum of two numbers as string.
-#[pyfunction]
+//#[pyfunction]
 fn sum_as_string(a: usize, b: usize) -> PyResult<String> {
     Ok((a + b).to_string())
 }
@@ -315,7 +353,7 @@ fn sum_as_string(a: usize, b: usize) -> PyResult<String> {
 /// A Python module implemented in Rust. The name of this function must match
 /// the `lib.name` setting in the `Cargo.toml`, else Python will not be able to
 /// import the module.
-#[pymodule]
+//#[pymodule]
 fn projetannuel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
