@@ -1,5 +1,6 @@
 use pyo3::prelude::*;
 use rand::Rng;
+use std::fmt::Display;
 
 struct LinearModel {
     x: Vec<Vec<f64>>,
@@ -218,13 +219,13 @@ fn inverse(mut matrix: Vec<Vec<f64>>, call: &str) -> Vec<Vec<f64>> {
 
     let mut result = vec![vec![0.0; matrix.len()]; matrix.len()];
     let mut pivot:f64=0.0;
-
     for i in 0..matrix.len() {
         result[i][i] = 1.0;
     }
  
     for i in 0..matrix.len(){
         //récupération du pivot
+        
         pivot = matrix[i][i];
         for j in i..matrix.len(){
             if matrix[j][i].abs()> pivot.abs(){
@@ -233,12 +234,16 @@ fn inverse(mut matrix: Vec<Vec<f64>>, call: &str) -> Vec<Vec<f64>> {
                 result.swap(i, j);
             }
         }
-
+        
+        println!("Pivot: {:?}", pivot);
+        print_matrix(&matrix);
+        
         if pivot==0.0{
             if call=="Moore-Penrose"{
-                panic!("La matrice possède des colonnes linéairements dépendantes");
+                println!("La matrice possède des colonnes linéairements dépendantes");
+                pivot = 1.0;
             }
-            panic!("La matrice n'est pas inversible");
+            //panic!("La matrice n'est pas inversible");
         }
 
         // normalisation ligne
@@ -259,6 +264,15 @@ fn inverse(mut matrix: Vec<Vec<f64>>, call: &str) -> Vec<Vec<f64>> {
     result
 }
 
+
+fn print_matrix<T: Display>(matrix: &Vec<Vec<T>>) {
+    for row in matrix {
+        for item in row {
+            print!("{}\t", item);
+        }
+        println!();
+    }
+}
 
 fn main() {
     let x = vec![vec![1.0, 0.0], vec![0.0, 1.0], vec![0.0, 0.0], vec![1.0, 1.0]];
@@ -336,9 +350,8 @@ fn main() {
     
     println!("Poids obtenus: {:?}", model2.weights);
     println!("Prédiction pour [1.0, 1.0]: {:.2}", model2.predict_regression(vec![1.0, 1.0]));
-    println!("Prédiction pour [2.0, 1.5]: {:.2}", model2.predict_regression(vec![2.0, 1.5]));
-    println!("Prédiction pour [3.0, 1.0]: {:.2}", model2.predict_regression(vec![3.0, 1.0]));
-
+    println!("Prédiction pour [5, 5]: {:.2}", model2.predict_regression(vec![5.0, 5.0]));
+    
     
 }
 
