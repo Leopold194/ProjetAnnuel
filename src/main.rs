@@ -1,3 +1,5 @@
+use std::vec;
+
 use pyo3::prelude::*;
 use rand::Rng;
 
@@ -7,6 +9,8 @@ struct LinearModel {
     weights: Vec<f64>,
     label_map: Option<(String, String)>,
 }
+
+
 
 enum Labels {
     Str(Vec<String>),
@@ -30,6 +34,99 @@ impl From<Vec<i32>> for Labels {
         Labels::Float(values.into_iter().map(|v| v as f64).collect())
     }
 }
+
+struct MLP {
+    npl: Vec<usize>, 
+    weights: Vec<Vec<Vec<f64>>>,  
+    l: usize, //layers    
+    x:Vec<Vec<f64>>,
+    deltas:Vec<Vec<f64>>  
+}
+
+
+impl MLP {
+    fn new(npl: Vec<usize>) -> Self {
+        let d = npl.clone();
+        let l = d.len() - 1;
+        let mut rng = rand::thread_rng();
+    
+        let mut weights = vec![vec![]];
+    
+        for layer in 1..=l {
+            let mut layer_weights = Vec::new();
+            
+            let mut bias_weights = Vec::with_capacity(d[layer] + 1);
+            bias_weights.push(0.0);
+            for _ in 1..=d[layer] {
+                bias_weights.push(rng.gen_range(-1.0..1.0));
+            }
+            layer_weights.push(bias_weights);
+    
+            for _ in 0..d[layer-1] {
+                let mut neuron_weights = Vec::with_capacity(d[layer] + 1);
+                neuron_weights.push(0.0);
+                for _ in 1..=d[layer] {
+                    neuron_weights.push(rng.gen_range(-1.0..1.0));
+                }
+                layer_weights.push(neuron_weights);
+            }
+    
+            weights.push(layer_weights);
+        }
+        
+        let mut x = Vec::with_capacity(l + 1);
+        let mut deltas = Vec::with_capacity(l + 1);
+        
+        for &neurons in d.iter() {
+            let mut x_layer = vec![1.0]; 
+            x_layer.extend(vec![0.0; neurons]); 
+            
+            let delta_layer = vec![0.0; neurons + 1];             
+            x.push(x_layer);
+            deltas.push(delta_layer);
+        }
+
+        MLP { npl, weights, l, x, deltas }
+    }
+
+    fn propagate(&mut self, inputs: Vec<f64>, is_classification: bool) {
+        for j in 1..=self.npl[0]{
+            self.x[0][j] = inputs[j-1];
+        }
+        for i in 1..=self.l{
+            for j in 0..=self.npl[i]{
+                let mut total: f64 = 0.0;
+                for k in 0..=self.npl[i-1]{
+                    total += self.weights[i][j][k]*self.x[i-1][j];
+                }
+                if (is_classification || i!=self.l){
+                    total = tanh(total);
+                }
+                self.x[i][j] = total;
+            }
+        }
+    }
+
+    fn train(&mut self, all_inputs: &Vec<Vec<f64>>,all_outputs:&Vec<Vec<f64>>,epochs:usize,alpha:f64,is_classification: bool){
+        for _ in 0..epochs{
+            let mut k: usize= rand::thread_rng().gen_range(0..all_inputs.len());
+            let sample_inputs:Vec<f64> = all_inputs[k].clone();
+            let sample_outputs: Vec<f64> = all_outputs[k].clone();
+            self.propagate(sample_inputs, is_classification);
+
+            for j in 1..=self.npl[self.l]{
+                self.deltas[self.l][j]= self.x[self.l][j]-sample_outputs[j-1];
+
+                if is_classification{
+                    self.deltas[self.l][j] *= (1 - self.X[self.L][j].powi(2));
+                }
+            }
+            for i in 
+        }
+    }
+}
+
+
 
 impl LinearModel {
     fn new<T: Into<Labels>>(x: Vec<Vec<f64>>, y: T) -> Self {
@@ -142,6 +239,9 @@ impl LinearModel {
     }
 }
 
+fn tanh(x: f64) -> f64 {
+    (x.exp() - (-x).exp()) / (x.exp() + (-x).exp())
+}
 
 fn matmatmul(a: &Vec<Vec<f64>>, b: &Vec<Vec<f64>>) -> Vec<Vec<f64>> {
     if a[0].len() != b.len() {
@@ -277,35 +377,8 @@ fn calc_determinant(matrice: Vec<Vec<f64>>) -> f64 {
 
 
 fn main() {
-    let x = vec![vec![1.0, 0.0], vec![0.0, 1.0], vec![0.0, 0.0], vec![1.0, 1.0]];
-    // let y = vec!["true", "true", "false", "true"]; // OR
-    let y = vec!["false", "false", "false", "true"]; // AND
-    // let y = vec![1, 1, 0, 1]; 
-
-    println!("X: {:?}", x);
-    println!("Y: {:?}", y);
-
-    let mut model = LinearModel::new(x, y);
-    model.train_classification(1000000, 0.001);
-
-    println!("Prediction: {:?}", model.predict(vec![1.0, 0.0]));
-    println!("Prediction: {:?}", model.predict(vec![0.0, 1.0]));
-    println!("Prediction: {:?}", model.predict(vec![0.0, 0.0]));
-    println!("Prediction: {:?}", model.predict(vec![1.0, 1.0]));
-
-    println!("Démonstration de régression linéaire");
-    
-    // Exemple simple
-    demo_simple_regression();
-    
-    // Exemple multivarié
-    demo_multivariate_regression();
-    
-    // Exemple avec labels string
-    demo_string_labels();
-    
-    println!("Tous les exemples ont été exécutés avec succès!");
-    
+    let mlp = MLP::new(vec![2,3, 1]);
+    println!("MLP: {:?}", mlp.weights);
 }
 
 fn demo_simple_regression() {
