@@ -90,59 +90,66 @@ impl MLP {
     }
 
     fn propagate(&mut self, inputs: &Vec<f64>, is_classification: bool) {
-        for j in 1..=self.npl[0]{
+        for j in 1..=self.npl[0] {
             self.x[0][j] = inputs[j-1];
         }
-        for i in 1..=self.l{
-            for j in 0..=self.npl[i]{
+        
+        for i in 1..=self.l {
+            for j in 1..=self.npl[i] { 
                 let mut total: f64 = 0.0;
-                for k in 0..=self.npl[i-1]{
-                    total += self.weights[i][j][k]*self.x[i-1][j];
+                for k in 0..=self.npl[i-1] { 
+                    total += self.weights[i][k][j] * self.x[i-1][k];
                 }
-                if (is_classification || i!=self.l){
-                    total = tanh(total);
-                }
-                self.x[i][j] = total;
-            }
-        }
-    }
-
-    fn train(&mut self, all_inputs: &Vec<Vec<f64>>,all_outputs:&Vec<Vec<f64>>,epochs:usize,alpha:f64,is_classification: bool){
-        for _ in 0..epochs{
-            let mut k: usize= rand::thread_rng().gen_range(0..all_inputs.len());
-            let sample_inputs:Vec<f64> = all_inputs[k].clone();
-            let sample_outputs: Vec<f64> = all_outputs[k].clone();
-            self.propagate(&sample_inputs, is_classification);
-
-            for j in 1..=self.npl[self.l]{
-                self.deltas[self.l][j]= self.x[self.l][j]-sample_outputs[j-1];
-
-                if is_classification{
-                    self.deltas[self.l][j] *= (1.0 - self.x[self.l][j].powi(2));
-                }
-            }
-            for i in self.l+1..2{
-                for j in 1..=self.npl[i-1]{
-                    let mut total: f64 = 0.0;
-                    for k in 1..=self.npl[i]{
-                        total+=self.weights[i][j][k]*self.deltas[i][k];
-                    }   
-                    total*=1.0-self.x[i-1][j].powi(2);
-                    self.deltas[i-1][j]=total;
-                }
-            }
-        }
-        for i in 1..=self.l{
-            for j in 0..=self.npl[i-1]{
-                for k in 1..=self.npl[i]{
-                    self.weights[i][j][k]-=alpha*self.x[i-1][j]*self.deltas[i][k];
+                
+                if is_classification || i != self.l {
+                    self.x[i][j] = total.tanh();
+                } else {
+                    self.x[i][j] = total;
                 }
             }
         }
     }
+
+    fn train(&mut self, all_inputs: &Vec<Vec<f64>>, all_outputs: &Vec<Vec<f64>>, epochs: usize, alpha: f64, is_classification: bool) {
+        for _ in 0..epochs {
+            let k = rand::thread_rng().gen_range(0..all_inputs.len());
+            let sample_inputs = &all_inputs[k];
+            let sample_outputs = &all_outputs[k];
+            
+            self.propagate(sample_inputs, is_classification);
+
+            for j in 1..=self.npl[self.l] {
+                let error = self.x[self.l][j] - sample_outputs[j-1];
+                if is_classification {
+                    self.deltas[self.l][j] = error * (1.0 - self.x[self.l][j].powi(2));
+                } else {
+                    self.deltas[self.l][j] = error;
+                }
+            }
+
+            for i in (1..self.l).rev() {
+                for j in 1..=self.npl[i] {
+                    let mut sum = 0.0;
+                    for k in 1..=self.npl[i+1] {
+                        sum += self.weights[i+1][j][k] * self.deltas[i+1][k];
+                    }
+                    self.deltas[i][j] = sum * (1.0 - self.x[i][j].powi(2));
+                }
+            }
+
+            for i in 1..=self.l {
+                for j in 0..=self.npl[i-1] {
+                    for k in 1..=self.npl[i] {
+                        self.weights[i][j][k] -= alpha * self.x[i-1][j] * self.deltas[i][k];
+                    }
+                }
+            }
+        }
+    }
+
     fn predict(&mut self, inputs: &Vec<f64>, is_classification: bool) -> Vec<f64> {
         self.propagate(inputs, is_classification);
-        return self.x[self.l][1..].to_vec(); 
+        self.x[self.l][1..].to_vec()
     }
 }
 
@@ -427,6 +434,66 @@ fn main() {
     for inputs in &dataset_inputs {
         println!("Input {:?} -> Output {:?}", inputs, model.predict(inputs, true));
     }
+
+    println!("\nTraining XOR classifier:");
+    let mut model = MLP::new(vec![2, 2, 1]);
+
+    let dataset_inputs = vec![
+        vec![0.0, 0.0],
+        vec![1.0, 0.0],
+        vec![0.0, 1.0],
+        vec![1.0, 1.0]
+    ];
+
+    let dataset_outputs = vec![
+        vec![-1.0],
+        vec![1.0],
+        vec![1.0],
+        vec![-1.0]
+    ];
+
+    println!("Initial predictions:");
+    for inputs in &dataset_inputs {
+        println!("{:?} -> {:?}", inputs, model.predict(inputs, true));
+    }
+
+    model.train(&dataset_inputs, &dataset_outputs, 1_000_000, 0.1, true);
+
+    println!("\nTrained predictions:");
+    for inputs in &dataset_inputs {
+        println!("{:?} -> {:?}", inputs, model.predict(inputs, true));
+    }
+
+    // Regression example
+    println!("\nTraining regression model:");
+    let mut model = MLP::new(vec![2, 4, 1]);
+
+    let dataset_inputs = vec![
+        vec![0.0, 0.0],
+        vec![1.0, 0.0],
+        vec![0.0, 1.0],
+        vec![1.0, 1.0]
+    ];
+
+    let dataset_outputs = vec![
+        vec![-3.0],
+        vec![2.0],
+        vec![1.0],
+        vec![-1.5]
+    ];
+
+    println!("Initial predictions:");
+    for inputs in &dataset_inputs {
+        println!("{:?} -> {:?}", inputs, model.predict(inputs, false));
+    }
+
+    model.train(&dataset_inputs, &dataset_outputs, 1_000_000, 0.0001, false);
+
+    println!("\nTrained predictions:");
+    for inputs in &dataset_inputs {
+        println!("{:?} -> {:?}", inputs, model.predict(inputs, false));
+    }
+
 }
 
 fn demo_simple_regression() {
