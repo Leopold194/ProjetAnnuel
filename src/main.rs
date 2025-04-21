@@ -89,7 +89,7 @@ impl MLP {
         MLP { npl, weights, l, x, deltas }
     }
 
-    fn propagate(&mut self, inputs: Vec<f64>, is_classification: bool) {
+    fn propagate(&mut self, inputs: &Vec<f64>, is_classification: bool) {
         for j in 1..=self.npl[0]{
             self.x[0][j] = inputs[j-1];
         }
@@ -112,17 +112,37 @@ impl MLP {
             let mut k: usize= rand::thread_rng().gen_range(0..all_inputs.len());
             let sample_inputs:Vec<f64> = all_inputs[k].clone();
             let sample_outputs: Vec<f64> = all_outputs[k].clone();
-            self.propagate(sample_inputs, is_classification);
+            self.propagate(&sample_inputs, is_classification);
 
             for j in 1..=self.npl[self.l]{
                 self.deltas[self.l][j]= self.x[self.l][j]-sample_outputs[j-1];
 
                 if is_classification{
-                    self.deltas[self.l][j] *= (1 - self.X[self.L][j].powi(2));
+                    self.deltas[self.l][j] *= (1.0 - self.x[self.l][j].powi(2));
                 }
             }
-            for i in 
+            for i in self.l+1..2{
+                for j in 1..=self.npl[i-1]{
+                    let mut total: f64 = 0.0;
+                    for k in 1..=self.npl[i]{
+                        total+=self.weights[i][j][k]*self.deltas[i][k];
+                    }   
+                    total*=1.0-self.x[i-1][j].powi(2);
+                    self.deltas[i-1][j]=total;
+                }
+            }
         }
+        for i in 1..=self.l{
+            for j in 0..=self.npl[i-1]{
+                for k in 1..=self.npl[i]{
+                    self.weights[i][j][k]-=alpha*self.x[i-1][j]*self.deltas[i][k];
+                }
+            }
+        }
+    }
+    fn predict(&mut self, inputs: &Vec<f64>, is_classification: bool) -> Vec<f64> {
+        self.propagate(inputs, is_classification);
+        return self.x[self.l][1..].to_vec(); 
     }
 }
 
@@ -377,8 +397,36 @@ fn calc_determinant(matrice: Vec<Vec<f64>>) -> f64 {
 
 
 fn main() {
-    let mlp = MLP::new(vec![2,3, 1]);
-    println!("MLP: {:?}", mlp.weights);
+    let mut model = MLP::new(vec![2, 3, 1]);
+    
+    println!("Initial weights:");
+    for (i, layer) in model.weights.iter().enumerate() {
+        println!("Layer {} weights: {:?}", i + 1, layer);
+    }
+    
+    let dataset_inputs = vec![
+        vec![0.0, 0.0],
+        vec![1.0, 0.0],
+        vec![0.0, 1.0]
+    ];
+    
+    let dataset_expected_outputs = vec![
+        vec![1.0],
+        vec![-1.0],
+        vec![-1.0]
+    ];
+    
+    println!("\nInitial predictions:");
+    for inputs in &dataset_inputs {
+        println!("Input {:?} -> Output {:?}", inputs, model.predict(inputs, true));
+    }
+    
+    model.train(&dataset_inputs, &dataset_expected_outputs, 1_000_000, 0.1, true);
+    
+    println!("\nTrained predictions:");
+    for inputs in &dataset_inputs {
+        println!("Input {:?} -> Output {:?}", inputs, model.predict(inputs, true));
+    }
 }
 
 fn demo_simple_regression() {
