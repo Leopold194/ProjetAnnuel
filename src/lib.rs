@@ -1,31 +1,33 @@
+mod utils;
+
 use pyo3::prelude::*;
-use pyo3::types::{ PyList, PyString, PyFloat };
-use pyo3::exceptions::PyTypeError;
-use pyo3::types::PyAny;
-use pyo3::FromPyObject;
+use pyo3::types::{ PyString, PyFloat, PyList };
 use rand::Rng;
 
 #[pyclass]
 struct LinearModel {
     x: Vec<Vec<f64>>,
-    y: Vec<f64>,
+    y: LabelsEnum,
     weights: Vec<f64>,
-    label_map: Option<(String, String)>,
+    label_map_str: Option<(String, String)>,
+    label_map_float: Option<(f64, f64)>,
+    model_type: String,
 }
 
 #[pyclass]
+#[derive(Clone)]
 enum LabelsEnum {
     Str(Vec<String>),
     Float(Vec<f64>),
 }
 
 #[pyfunction]
-fn StringLabels(labels: Vec<String>) -> LabelsEnum {
+fn string_labels(labels: Vec<String>) -> LabelsEnum {
     LabelsEnum::Str(labels)
 }
 
 #[pyfunction]
-fn FloatLabels(labels: Vec<f64>) -> LabelsEnum {
+fn float_labels(labels: Vec<f64>) -> LabelsEnum {
     LabelsEnum::Float(labels)
 }
 
@@ -57,6 +59,15 @@ impl From<Vec<i32>> for LabelsEnum {
     }
 }
 
+#[allow(dead_code)]
+fn py_print(py: Python<'_>, msg: &str) -> PyResult<()> {
+    let sys = PyModule::import(py, "sys")?;
+    let stdout = sys.getattr("stdout")?;
+    stdout.call_method1("write", (format!("{}\n", msg),))?;
+    stdout.call_method0("flush")?;
+    Ok(())
+}
+
 #[pymethods]
 impl LinearModel {
     
@@ -66,10 +77,31 @@ impl LinearModel {
     /// The function normalizes the labels to -1 and 1 for classification tasks.
     
     #[new]
-    fn new(x: Vec<Vec<f64>>, y: &LabelsEnum) -> Self {
-        let mut label_map = None;
+    fn new(x: Vec<Vec<f64>>, y: LabelsEnum) -> Self {
+        let mut rng = rand::rng();
+        let mut weights = (0..x[0].len()).map(|_| rng.random_range(-1.0..1.0)).collect::<Vec<f64>>();
+        weights.push(0.0); // biais
 
-        let labels_norm = match y {
+        LinearModel {
+            x,
+            y,
+            weights,
+            label_map_str: None,
+            label_map_float: None,
+            model_type: "".to_string(),
+        }
+    }
+
+    /// Trains the model for a specified number of epochs using the given learning rate.
+    /// The training process involves adjusting the weights based on the input features and labels.
+    fn train_classification(&mut self, epochs: usize, learning_rate: f64) {
+        
+        self.model_type = "classification".to_string();
+        
+        let mut label_map_str = None;
+        let mut label_map_float = None;
+
+        let labels_norm = match &self.y {
             LabelsEnum::Str(labels) => {
                 let first_label = labels[0].clone();
                 let second_label = labels
@@ -77,7 +109,7 @@ impl LinearModel {
                     .find(|l| **l != first_label)
                     .unwrap_or(&first_label)
                     .clone();
-                label_map = Some((first_label.clone(), second_label.clone()));
+                label_map_str = Some((first_label.clone(), second_label.clone()));
 
                 labels
                     .iter()
@@ -90,7 +122,7 @@ impl LinearModel {
                 uniq.dedup();
 
                 if uniq.len() == 2 {
-                    label_map = Some((uniq[1].to_string(), uniq[0].to_string())); // 1.0 -> uniq[1], -1.0 -> uniq[0]
+                    label_map_float = Some((uniq[1], uniq[0]));
                     values
                         .iter()
                         .map(|v| if *v == uniq[1] { 1.0 } else { -1.0 })
@@ -101,28 +133,17 @@ impl LinearModel {
             }
         };
 
-        let mut rng = rand::thread_rng();
-        let mut weights = (0..x[0].len()).map(|_| rng.gen_range(-1.0..1.0)).collect::<Vec<f64>>();
-        weights.push(0.0); // biais
-
-        LinearModel {
-            x,
-            y: labels_norm,
-            weights,
-            label_map,
-        }
-    }
-
-    /// Trains the model for a specified number of epochs using the given learning rate.
-    /// The training process involves adjusting the weights based on the input features and labels.
-    fn train_classification(&mut self, epochs: usize, learning_rate: f64) {
+        self.label_map_str = label_map_str;
+        self.label_map_float = label_map_float;
+        
         for _ in 0..epochs {
-            let mut rng = rand::thread_rng();
-            let i = rng.gen_range(0..self.x.len());
+            let mut rng = rand::rng();
+            let i = rng.random_range(0..self.x.len());
 
             let random_x = self.x[i].clone();
-            let prediction = self.predict_value(random_x.clone());
-            let error = self.y[i] - prediction;
+
+            let prediction = self.predict_classification(random_x.clone());
+            let error = labels_norm[i] - prediction;
 
             for j in 0..self.weights.len() - 1 {
                 self.weights[j] += learning_rate * error * random_x[j];
@@ -137,27 +158,40 @@ impl LinearModel {
     /// Trains the model using linear regression.
     /// The training process involves calculating the weights using the normal equation.
     fn train_regression(&mut self) {
+
+        self.model_type = "regression".to_string();
+
         let mut x = self.x.clone();
 
         // Ajout du biais
         for i in 0..x.len(){
             x[i].push(1.0);
         }
-        let y = self.y.clone(); 
+        let y = self.y.clone();
+        let y: Vec<f64> = match y {
+            LabelsEnum::Str(_labels) => {
+                panic!("La regression ne fonctionne pas avec des labels de type String")
+            }
+            LabelsEnum::Float(values) => values,
+        };
 
-        let xt: Vec<Vec<f64>> = transpose(&x);
+        println!("X: {:?}", x);
+        println!("Y: {:?}", y);
 
-        let xtx: Vec<Vec<f64>> = matmatmul(&xt, &x);
-        let xtx_inv: Vec<Vec<f64>> = inverse(xtx.clone());
-        let xtx_inv_xt: Vec<Vec<f64>> = matmatmul(&xtx_inv, &xt);
-        self.weights = matvecmul(&xtx_inv_xt, &y);
+        let xt: Vec<Vec<f64>> = utils::transpose(&x);
+
+        let xtx: Vec<Vec<f64>> = utils::matmatmul(&xt, &x);
+        let call: &str = "Moore-Penrose";
+        let xtx_inv: Vec<Vec<f64>> = utils::inverse(xtx.clone(), &call);
+        let xtx_inv_xt: Vec<Vec<f64>> = utils::matmatmul(&xtx_inv, &xt);
+        self.weights = utils::matvecmul(&xtx_inv_xt, &y);
         
         println!("Weights: {:?}", self.weights);
     }
 
     /// Predicts the output for a given input vector `x` using the trained model.
     /// The function calculates the weighted sum of the input features and applies the activation function.
-    fn predict_value(&self, x: Vec<f64>) -> f64 {
+    fn predict_classification(&self, x: Vec<f64>) -> f64 {
         let mut sum = 0.0;
         let mut x_with_bias = x.clone();
         x_with_bias.push(1.0);
@@ -173,175 +207,122 @@ impl LinearModel {
         }
     }
 
-    fn predict(&self, x: Vec<f64>) -> String {
-        let prediction = self.predict_value(x);
+    fn predict_regression(&self, x: Vec<f64>) -> f64 {
+        let mut x_with_bias: Vec<f64> = x.clone();
+        x_with_bias.push(1.0);
+        let y = utils::vecvecmul(&self.weights,&x_with_bias);
+        let mut value:f64=0.0;
 
-        if let Some((pos, neg)) = &self.label_map {
-            if prediction > 0.0 { pos.clone() } else { neg.clone() }
-        } else {
-            prediction.to_string()
-        }
-    }
-}
-
-
-fn matmatmul(a: &Vec<Vec<f64>>, b: &Vec<Vec<f64>>) -> Vec<Vec<f64>> {
-    if a[0].len() != b.len() {
-        panic!("Matrix dimensions do not match for multiplication.");
-    }
-    let mut result = vec![vec![0.0; b[0].len()]; a.len()];
-    for i in 0..a.len() {
-        for j in 0..b[0].len() {
-            for k in 0..b.len() {
-                result[i][j] += a[i][k] * b[k][j];
-            }
-        }
-    }
-    return result
-}
-
-fn matvecmul(a: &Vec<Vec<f64>>,b:&Vec<f64>)->Vec<f64>{
-    if a[0].len() != b.len() {
-        panic!("Matrix and vector dimensions do not match for multiplication.");
-    }
-    let mut result = vec![0.0; a.len()];
-    for i in 0..a.len() {
-        for j in 0..b.len() {
-            result[i] += a[i][j] * b[j];
-        }
-    }
-    return result
-}
-
-fn transpose(matrix:&Vec<Vec<f64>>) -> Vec<Vec<f64>> {
-    let mut transposed = vec![vec![0.0; matrix.len()]; matrix[0].len()];
-    for i in 0..matrix.len() {
-        for j in 0..matrix[0].len() {
-            transposed[j][i] = matrix[i][j];
-        }
-    }
-    transposed
-}
-
-fn inverse(mut matrix: Vec<Vec<f64>>) -> Vec<Vec<f64>> {
-    // Inversion de matrice, copie une fois en mémoire la matrice (pour avoir les deux en meme temps)
-
-    let mut result = vec![vec![0.0; matrix.len()]; matrix.len()];
-    let mut pivot:f64=0.0;
-
-    for i in 0..matrix.len() {
-        result[i][i] = 1.0;
-    }
- 
-    for i in 0..matrix.len(){
-        //récupération du pivot
-        pivot = matrix[i][i];
-        for j in i..matrix.len(){
-            if matrix[j][i].abs()> pivot.abs(){
-                pivot = matrix[j][i];
-                matrix.swap(i, j);
-                result.swap(i, j);
-            }
+        for i in 0..y.len(){
+            value+=y[i];
         }
 
-        if pivot==0.0{
-            panic!("La matrice n'est pas inversible");
-        }
-
-        // normalisation ligne
-        matrix[i].iter_mut().for_each(|x| *x /= pivot);
-        result[i].iter_mut().for_each(|x| *x /= pivot);
-        
-        //normalisation colonne
-        for j in 0..matrix.len(){
-            if j!=i{
-                let ratio = matrix[j][i];
-                for k in 0..matrix[0].len(){
-                    matrix[j][k] -= ratio * matrix[i][k];
-                    result[j][k] -= ratio * result[i][k];
-                }
-            }
-        }    
-    }
-    result
-}
-
-fn calc_determinant(matrice: Vec<Vec<f64>>) -> f64 {
-    //Utilisation pivot de Gauss pour calculer le déterminant.
-    //Modifications sur la matrice d'origine, donc faut pas passer le paramètre par référence.
-    //nvm je crée une copie au début comme ca on est bons.
-
-    let mut matrix: Vec<Vec<f64>> = matrice.clone();
-    
-    if matrix.len() != matrix[0].len() {
-        panic!("Matrix is not square.");
-    }
-
-    let mut det:f64=1.0;
-    let n = matrix.len();
-
-    for i in 0..n{
-        // Recherche du pivot
-
-        if matrix[i][i] == 0.0 {
-            let mut found = false;
-            for k in i+1..n{
-                if matrix[k][i] != 0.0{
-                    matrix.swap(i, k);
-                    det *=-1.0;
-                    found = true;
-                    break;
-                }
-            }
-            
-            // If no non-zero element is found, the determinant is zero.    
-            if found==false{
-                return 0.0;
-            }
-
-        }
-        //application du pivot
-        for j in i+1..n{
-            let ratio = matrix[j][i] / matrix[i][i];
-            for k in i..n{
-                matrix[j][k] -= ratio * matrix[i][k];
-            }
-        }
-
-    }
-    //calcul déterminant
-    for i in 0..n{
-        det *= matrix[i][i];
+        value
     }
     
-    det
+    pub fn predict(&self, py: Python<'_>, x: Vec<f64>) -> PyResult<PyObject> {
+        match self.model_type.as_str() {
+            "regression" => {
+                let value = self.predict_regression(x);
+                Ok(PyFloat::new(py, value).into())
+            }
+            _ => {
+                let prediction = self.predict_classification(x);
+
+                if let Some((pos, neg)) = &self.label_map_str {
+                    let label_str = if prediction > 0.0 { pos } else { neg };
+                    Ok(PyString::new(py, label_str).into())
+                } else {
+                    let (pos, neg) = self
+                        .label_map_float
+                        .as_ref()
+                        .expect("label_map_float should never be None if label_map_str is None");
+                    let label_float = if prediction > 0.0 { pos } else { neg };
+                    Ok(PyFloat::new(py, *label_float).into())
+                }
+                
+            }
+        }
+    }
 }
 
-
-fn main() {
-    let x = vec![vec![1.0, 0.0], vec![0.0, 1.0], vec![0.0, 0.0], vec![1.0, 1.0]];
-    // let y = vec!["true", "true", "false", "true"]; // OR
-    let y = vec!["false", "false", "false", "true"]; // AND
-    // let y = vec![1, 1, 0, 1];
-
-    println!("X: {:?}", x);
-    println!("Y: {:?}", y);
-
-    let mut model = LinearModel::new(x, &LabelsEnum::from(y));
-    model.train_classification(1000000, 0.001);
-
-    println!("Prediction: {:?}", model.predict(vec![1.0, 0.0]));
-    println!("Prediction: {:?}", model.predict(vec![0.0, 1.0]));
-    println!("Prediction: {:?}", model.predict(vec![0.0, 0.0]));
-    println!("Prediction: {:?}", model.predict(vec![1.0, 1.0]));
-}
-
-
-
-/// Formats the sum of two numbers as string.
+#[allow(dead_code)]
 #[pyfunction]
-fn sum_as_string(a: usize, b: usize) -> PyResult<String> {
-    Ok((a + b).to_string())
+fn accuracy_score(py: Python, y_true: PyObject, y_pred: PyObject) -> PyResult<f64> {
+
+    let y_true = y_true.downcast_bound::<PyList>(py)?;
+    let y_pred = y_pred.downcast_bound::<PyList>(py)?;
+
+    if y_true.len() != y_pred.len() {
+        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "y_true et y_pred doivent avoir la même longueur",
+        ));
+    }
+
+    let mut correct = 0;
+
+    for (a, b) in y_true.iter().zip(y_pred.iter()) {
+        if let (Ok(va), Ok(vb)) = (a.extract::<f64>(), b.extract::<f64>()) {
+            if (va - vb).abs() < 1e-6 {
+                correct += 1;
+            }
+        } else if let (Ok(va), Ok(vb)) = (a.extract::<i64>(), b.extract::<i64>()) {
+            if va == vb {
+                correct += 1;
+            }
+        } else if let (Ok(va), Ok(vb)) = (a.extract::<&str>(), b.extract::<&str>()) {
+            if va == vb { 
+                correct += 1;
+            }
+        } else {
+            return Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                "Les types ne correspondent pas pour la comparaison (doivent être float, int ou str)",
+            ));
+        }
+    }
+
+    Ok(correct as f64 / y_true.len() as f64)
+}
+
+#[allow(dead_code)]
+#[pyfunction]
+fn mean_squared_error(py: Python, y_true: PyObject, y_pred: PyObject) -> PyResult<f64> {
+
+    let y_true = y_true.downcast_bound::<PyList>(py)?;
+    let y_pred = y_pred.downcast_bound::<PyList>(py)?;
+
+    if y_true.len() != y_pred.len() {
+        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "y_true et y_pred doivent avoir la même longueur",
+        ));
+    }
+
+    let val_nb = y_true.len();
+    let mut errors = Vec::with_capacity(val_nb);
+
+    for (a, b) in y_true.iter().zip(y_pred.iter()) {
+        if let (Ok(va), Ok(vb)) = (a.extract::<f64>(), b.extract::<f64>()) {
+            errors.push(va - vb);
+        } else if let (Ok(va), Ok(vb)) = (a.extract::<i64>(), b.extract::<i64>()) {
+            errors.push((va - vb) as f64);
+        } else {
+            return Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                "Les types ne correspondent pas pour la comparaison (doivent être float ou int)",
+            ));
+        }
+    }
+
+    let mut squared_errors_sum: f64 = 0.0;
+
+    for val in errors {
+        squared_errors_sum += val * val;
+    }
+
+    Ok(squared_errors_sum / val_nb as f64)
+}
+
+pub fn main() {
+
 }
 
 /// A Python module implemented in Rust. The name of this function must match
@@ -349,12 +330,13 @@ fn sum_as_string(a: usize, b: usize) -> PyResult<String> {
 /// import the module.
 #[pymodule]
 fn projetannuel(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(sum_as_string, m)?)?;
+    m.add_function(wrap_pyfunction!(accuracy_score,m)?)?;
+    m.add_function(wrap_pyfunction!(mean_squared_error,m)?)?;
 
     m.add_class::<LinearModel>()?;
-    //m.add_class::<LabelsEnum>()?;
-    m.add_function(wrap_pyfunction!(FloatLabels,m)?)?;
-    m.add_function(wrap_pyfunction!(StringLabels,m)?)?;
+
+    m.add_function(wrap_pyfunction!(float_labels,m)?)?;
+    m.add_function(wrap_pyfunction!(string_labels,m)?)?;
 
     Ok(())
 }
