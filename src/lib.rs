@@ -15,6 +15,15 @@ struct LinearModel {
 }
 
 #[pyclass]
+struct MLP {
+    npl: Vec<usize>, // neurons per layer
+    weights: Vec<Vec<Vec<f64>>>,  
+    l: usize, //layers    
+    x:Vec<Vec<f64>>,
+    deltas:Vec<Vec<f64>>  
+}
+
+#[pyclass]
 #[derive(Clone)]
 enum LabelsEnum {
     Str(Vec<String>),
@@ -69,6 +78,126 @@ fn py_print(py: Python<'_>, msg: &str) -> PyResult<()> {
 }
 
 #[pymethods]
+impl MLP {
+
+    #[new]
+    fn new(npl: Vec<usize>) -> Self {
+        let d = npl.clone();
+        let l = d.len() - 1;
+        let mut rng = rand::rng();
+    
+        let mut weights = vec![vec![]];
+    
+        for layer in 1..=l {
+            let mut layer_weights = Vec::new();
+            
+            let mut bias_weights = Vec::with_capacity(d[layer] + 1);
+            bias_weights.push(0.0);
+            for _ in 1..=d[layer] {
+                bias_weights.push(rng.random_range(-1.0..1.0));
+            }
+            layer_weights.push(bias_weights);
+    
+            for _ in 0..d[layer-1] {
+                let mut neuron_weights = Vec::with_capacity(d[layer] + 1);
+                neuron_weights.push(0.0);
+                for _ in 1..=d[layer] {
+                    neuron_weights.push(rng.random_range(-1.0..1.0));
+                }
+                layer_weights.push(neuron_weights);
+            }
+    
+            weights.push(layer_weights);
+        }
+        
+        let mut x = Vec::with_capacity(l + 1);
+        let mut deltas = Vec::with_capacity(l + 1);
+        
+        for &neurons in d.iter() {
+            let mut x_layer = vec![1.0]; 
+            x_layer.extend(vec![0.0; neurons]); 
+            
+            let delta_layer = vec![0.0; neurons + 1];             
+            x.push(x_layer);
+            deltas.push(delta_layer);
+        }
+
+        MLP { 
+            npl, 
+            weights, 
+            l, 
+            x, 
+            deltas 
+        }
+    }
+
+    fn propagate(&mut self, inputs: Vec<f64>, is_classification: bool) {
+        for j in 1..=self.npl[0] {
+            self.x[0][j] = inputs[j-1];
+        }
+        
+        for i in 1..=self.l {
+            for j in 1..=self.npl[i] { 
+                let mut total: f64 = 0.0;
+                for k in 0..=self.npl[i-1] { 
+                    total += self.weights[i][k][j] * self.x[i-1][k];
+                }
+                
+                if is_classification || i != self.l {
+                    self.x[i][j] = total.tanh();
+                } else {
+                    self.x[i][j] = total;
+                }
+            }
+        }
+    }
+
+    fn train(&mut self, all_inputs: Vec<Vec<f64>>, all_outputs: Vec<Vec<f64>>, epochs: usize, alpha: f64, is_classification: bool) {
+        for _ in 0..epochs {
+            let k = rand::rng().random_range(0..all_inputs.len());
+            let sample_inputs = all_inputs[k].clone();
+            let sample_outputs = all_outputs[k].clone();
+            
+            self.propagate(sample_inputs, is_classification);
+
+            for j in 1..=self.npl[self.l] {
+                let error = self.x[self.l][j] - sample_outputs[j-1];
+                if is_classification {
+                    self.deltas[self.l][j] = error * (1.0 - self.x[self.l][j].powi(2));
+                } else {
+                    self.deltas[self.l][j] = error;
+                }
+            }
+
+            for i in (1..self.l).rev() {
+                for j in 1..=self.npl[i] {
+                    let mut sum = 0.0;
+                    for k in 1..=self.npl[i+1] {
+                        sum += self.weights[i+1][j][k] * self.deltas[i+1][k];
+                    }
+                    self.deltas[i][j] = sum * (1.0 - self.x[i][j].powi(2));
+                }
+            }
+
+            for i in 1..=self.l {
+                for j in 0..=self.npl[i-1] {
+                    for k in 1..=self.npl[i] {
+                        self.weights[i][j][k] -= alpha * self.x[i-1][j] * self.deltas[i][k];
+                    }
+                }
+            }
+        }
+    }
+
+    // fn train_classification(&mut self, all_inputs: Vec<Vec<f64>>, all_outputs: Vec<Vec<f64>>, epochs: usize, alpha: f64)
+
+    fn predict(&mut self, inputs: Vec<f64>, is_classification: bool) -> Vec<f64> {
+        self.propagate(inputs, is_classification);
+        self.x[self.l][1..].to_vec()
+    }
+}
+
+#[pymethods]
 impl LinearModel {
     
     /// Creates a new LinearModel instance.
@@ -89,6 +218,51 @@ impl LinearModel {
             label_map_str: None,
             label_map_float: None,
             model_type: "".to_string(),
+        }
+    }
+
+    fn calc_log_loss(&mut self, y: Vec<f64>, sig_val: Vec<f64>) -> f64 {
+        let mut loss = 0.0;
+
+        for i in 0..sig_val.len() {
+            loss += y[i] * sig_val[i].ln() + (1.0 - y[i]) * (1.0 - sig_val[i]).ln();
+        }
+
+        (- 1.0 / sig_val.len() as f64) * loss
+    }
+
+    fn calc_gradients(&mut self, sig_val: Vec<f64>, x: Vec<Vec<f64>>, y: Vec<f64>) -> Vec<f64> {
+        let n = y.len();
+        let m = x[0].len();
+
+        let mut weights_grad = vec![0.0; x[0].len()];
+        let mut bias_grad = 0.0;
+
+        let mut diff;
+
+        for i in 0..n {
+            diff = sig_val[i] - y[i];
+
+            for j in 0..m {
+                weights_grad[j] += x[i][j] * diff;
+            }
+
+            bias_grad += diff;
+        }
+        
+        for j in 0..m {
+            weights_grad[j] /= n as f64;
+        }
+        bias_grad /= n as f64;
+
+        weights_grad.push(bias_grad);
+
+        weights_grad
+    }
+
+    fn update_weights(&mut self, weights_grad: Vec<f64>, learning_rate: f64){
+        for i in 0..self.weights.len() {
+            self.weights[i] -= weights_grad[i] * learning_rate;
         }
     }
 
@@ -113,7 +287,7 @@ impl LinearModel {
 
                 labels
                     .iter()
-                    .map(|label| if *label == first_label { 1.0 } else { -1.0 })
+                    .map(|label| if *label == first_label { 1.0 } else { 0.0 })
                     .collect()
             }
             LabelsEnum::Float(values) => {
@@ -125,7 +299,7 @@ impl LinearModel {
                     label_map_float = Some((uniq[1], uniq[0]));
                     values
                         .iter()
-                        .map(|v| if *v == uniq[1] { 1.0 } else { -1.0 })
+                        .map(|v| if *v == uniq[1] { 1.0 } else { 0.0 })
                         .collect()
                 } else {
                     values.clone()
@@ -135,24 +309,21 @@ impl LinearModel {
 
         self.label_map_str = label_map_str;
         self.label_map_float = label_map_float;
+
+        let mut loss = Vec::with_capacity(labels_norm.len());
+        let mut a;
+        let mut l;
+        let mut weights_grad;
+
         
+
         for _ in 0..epochs {
-            let mut rng = rand::rng();
-            let i = rng.random_range(0..self.x.len());
-
-            let random_x = self.x[i].clone();
-
-            let prediction = self.predict_classification(random_x.clone());
-            let error = labels_norm[i] - prediction;
-
-            for j in 0..self.weights.len() - 1 {
-                self.weights[j] += learning_rate * error * random_x[j];
-            }
-            let last_index = self.weights.len() - 1;
-            self.weights[last_index] += learning_rate * error;
+            a = self.model(self.x.clone());
+            l = self.calc_log_loss(labels_norm.clone(), a.clone());
+            loss.push(l);
+            weights_grad = self.calc_gradients(a.clone(), self.x.clone(), labels_norm.clone());
+            self.update_weights(weights_grad, learning_rate);
         }
-
-        // println!("Weights: {:?}", self.weights);
     }
 
     /// Trains the model using linear regression.
@@ -191,19 +362,37 @@ impl LinearModel {
 
     /// Predicts the output for a given input vector `x` using the trained model.
     /// The function calculates the weighted sum of the input features and applies the activation function.
-    fn predict_classification(&self, x: Vec<f64>) -> f64 {
-        let mut sum = 0.0;
-        let mut x_with_bias = x.clone();
-        x_with_bias.push(1.0);
+    fn model(&self, x: Vec<Vec<f64>>) -> Vec<f64> {
+        let mut weights_without_bias = self.weights.clone();
+        weights_without_bias.pop();
+        let mut z = utils::matvecmul(&x, &weights_without_bias);
 
-        for i in 0..x_with_bias.len() {
-            sum += x_with_bias[i] * self.weights[i];
+        let bias = self.weights[self.weights.len() - 1];
+        for val in z.iter_mut() {
+            *val += bias;
         }
 
-        if sum > 0.0 {
-            1.0
-        } else {
-            -1.0
+        // activation function (sigmoid)
+        let mut result = Vec::with_capacity(z.len());
+
+        for i in 0..z.len() {
+            let neg_x = -z[i];
+            let sigmoid = 1.0 / (1.0 + neg_x.exp());
+            result.push(sigmoid);
+        }
+
+        result
+    }
+
+    fn predict_classification(&self, x: Vec<f64>) -> f64 {
+        let val = self.model(vec![x])[0];
+        match val {
+            tmp if tmp >= 0.5 => {
+                return 1.0
+            }
+            _ => {
+                return 0.0
+            }
         }
     }
 
@@ -334,6 +523,7 @@ fn projetannuel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(mean_squared_error,m)?)?;
 
     m.add_class::<LinearModel>()?;
+    m.add_class::<MLP>()?;
 
     m.add_function(wrap_pyfunction!(float_labels,m)?)?;
     m.add_function(wrap_pyfunction!(string_labels,m)?)?;

@@ -118,54 +118,59 @@ pub fn print_matrix<T: Display>(matrix: &Vec<Vec<T>>) {
     }
 }
 
-// pub fn calc_determinant(matrice: Vec<Vec<f64>>) -> f64 {
-//     //Utilisation pivot de Gauss pour calculer le déterminant.
-//     //Modifications sur la matrice d'origine, donc faut pas passer le paramètre par référence.
-//     //nvm je crée une copie au début comme ca on est bons.
+#[allow(dead_code)]
+pub fn calc_determinant(matrice: Vec<Vec<f64>>) -> f64 {
+    //Utilisation pivot de Gauss pour calculer le déterminant.
+    //Modifications sur la matrice d'origine, donc faut pas passer le paramètre par référence.
+    //nvm je crée une copie au début comme ca on est bons.
 
-//     let mut matrix: Vec<Vec<f64>> = matrice.clone();
+    let mut matrix: Vec<Vec<f64>> = matrice.clone();
     
-//     if matrix.len() != matrix[0].len() {
-//         panic!("Matrix is not square.");
-//     }
+    if matrix.len() != matrix[0].len() {
+        panic!("Matrix is not square.");
+    }
 
-//     let mut det:f64=1.0;
-//     let n = matrix.len();
+    let mut det:f64=1.0;
+    let n = matrix.len();
 
-//     for i in 0..n{
-//         // Recherche du pivot
+    for i in 0..n{
+        // Recherche du pivot
 
-//         if matrix[i][i] == 0.0 {
-//             let mut found = false;
-//             for k in i+1..n{
-//                 if matrix[k][i] != 0.0{
-//                     matrix.swap(i, k);
-//                     det *=-1.0;
-//                     found = true;
-//                     break;
-//                 }
-//             }
+        if matrix[i][i] == 0.0 {
+            let mut found = false;
+            for k in i+1..n{
+                if matrix[k][i] != 0.0{
+                    matrix.swap(i, k);
+                    det *=-1.0;
+                    found = true;
+                    break;
+                }
+            }
             
-//             // If no non-zero element is found, the determinant is zero.    
-//             if found==false{
-//                 return 0.0;
-//             }
+            // If no non-zero element is found, the determinant is zero.    
+            if found==false{
+                return 0.0;
+            }
 
-//         }
-//         //application du pivot
-//         for j in i+1..n{
-//             let ratio = matrix[j][i] / matrix[i][i];
-//             for k in i..n{
-//                 matrix[j][k] -= ratio * matrix[i][k];
-//             }
-//         }
+        }
+        //application du pivot
+        for j in i+1..n{
+            let ratio = matrix[j][i] / matrix[i][i];
+            for k in i..n{
+                matrix[j][k] -= ratio * matrix[i][k];
+            }
+        }
 
-//     }
-//     //calcul déterminant
-//     for i in 0..n{
-//         det *= matrix[i][i];
-//     }
+    }
+    //calcul déterminant
+    for i in 0..n{
+        det *= matrix[i][i];
+    }
     
-//     det
-// }
+    det
+}
 
+#[allow(dead_code)]
+pub fn tanh(x: f64) -> f64 {
+    (x.exp() - (-x).exp()) / (x.exp() + (-x).exp())
+}
