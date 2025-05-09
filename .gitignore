@@ -1,6 +1,8 @@
 pavenv/
 target/
 .env
+dataset/images_flat.json
+dataset/images_and_genres.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

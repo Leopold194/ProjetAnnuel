@@ -382,10 +382,13 @@ impl LinearModel {
         // activation function (sigmoid)
         let mut result = Vec::with_capacity(z.len());
 
+        let eps = 1e-15;
         for i in 0..z.len() {
             let neg_x = -z[i];
             let sigmoid = 1.0 / (1.0 + neg_x.exp());
-            result.push(sigmoid);
+            // car si valeur trèèès grande de z, exp(-z) = 1 et si trèèès petit = 0
+            let clamped = sigmoid.clamp(eps, 1.0 - eps);
+            result.push(clamped);
         }
 
         result
