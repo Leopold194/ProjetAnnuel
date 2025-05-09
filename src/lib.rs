@@ -12,6 +12,7 @@ struct LinearModel {
     label_map_str: Option<(String, String)>,
     label_map_float: Option<(f64, f64)>,
     model_type: String,
+    loss: Vec<f64>,
 }
 
 #[pyclass]
@@ -218,12 +219,18 @@ impl LinearModel {
             label_map_str: None,
             label_map_float: None,
             model_type: "".to_string(),
+            loss: vec![],
         }
     }
 
     #[getter]
     fn weights(&self) -> Vec<f64> {
         self.weights.clone()
+    }
+
+    #[getter]
+    fn loss(&self) -> Vec<f64> {
+        self.loss.clone()
     }
 
     fn calc_log_loss(&mut self, y: Vec<f64>, sig_val: Vec<f64>) -> f64 {
@@ -320,8 +327,6 @@ impl LinearModel {
         let mut l;
         let mut weights_grad;
 
-        
-
         for _ in 0..epochs {
             a = self.model(self.x.clone());
             l = self.calc_log_loss(labels_norm.clone(), a.clone());
@@ -329,6 +334,8 @@ impl LinearModel {
             weights_grad = self.calc_gradients(a.clone(), self.x.clone(), labels_norm.clone());
             self.update_weights(weights_grad, learning_rate);
         }
+
+        self.loss = loss;
     }
 
     /// Trains the model using linear regression.
