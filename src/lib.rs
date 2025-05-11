@@ -4,6 +4,8 @@ use pyo3::prelude::*;
 use pyo3::types::{ PyString, PyFloat, PyList };
 use rand::Rng;
 
+
+
 #[pyclass]
 struct LinearModel {
     x: Vec<Vec<f64>>,
@@ -21,7 +23,9 @@ struct MLP {
     weights: Vec<Vec<Vec<f64>>>,  
     l: usize, //layers    
     x:Vec<Vec<f64>>,
-    deltas:Vec<Vec<f64>>  
+    deltas:Vec<Vec<f64>>,
+    #[pyo3(get)]
+    loss:Vec<f64>
 }
 
 #[pyclass]
@@ -71,10 +75,8 @@ impl From<Vec<i32>> for LabelsEnum {
 
 #[allow(dead_code)]
 fn py_print(py: Python<'_>, msg: &str) -> PyResult<()> {
-    let sys = PyModule::import(py, "sys")?;
-    let stdout = sys.getattr("stdout")?;
-    stdout.call_method1("write", (format!("{}\n", msg),))?;
-    stdout.call_method0("flush")?;
+    let builtins = PyModule::import(py, "builtins")?;
+    builtins.call_method1("print", (msg,))?;  // call the “print” attribute with one arg
     Ok(())
 }
 
@@ -128,7 +130,8 @@ impl MLP {
             weights, 
             l, 
             x, 
-            deltas 
+            deltas,
+            loss:Vec::new()
         }
     }
 
@@ -153,13 +156,54 @@ impl MLP {
         }
     }
 
+    #[getter]
+    pub fn loss(&self) -> Vec<f64> {
+        self.loss.clone()
+    }
+
     fn train(&mut self, all_inputs: Vec<Vec<f64>>, all_outputs: Vec<Vec<f64>>, epochs: usize, alpha: f64, is_classification: bool) {
-        for _ in 0..epochs {
+        for epoch in 0..epochs {
             let k = rand::rng().random_range(0..all_inputs.len());
             let sample_inputs = all_inputs[k].clone();
             let sample_outputs = all_outputs[k].clone();
             
             self.propagate(sample_inputs, is_classification);
+
+
+            let mut loss = 0.0;
+
+            for j in 1..=self.npl[self.l] {
+                let y_hat = self.x[self.l][j];
+                let y = sample_outputs[j - 1];
+    
+                if is_classification {
+                    let eps = 1e-8;
+                    let y_hat_clipped = y_hat.max(eps).min(1.0 - eps);
+                    loss += -y * y_hat_clipped.ln() - (1.0 - y) * (1.0 - y_hat_clipped).ln();
+
+                } else {
+                    loss += 0.5 * (y_hat - y).powi(2);
+
+                }
+            }
+
+            let num_outputs:f64 = self.npl[self.l] as f64;
+            self.loss.push(loss/num_outputs);
+
+            if epoch % 100 == 0 {
+
+                let msg = if is_classification {
+                    format!("Epoch {} – BCE: {:.6}", epoch, loss)
+                } else {
+                    format!("Epoch {} – MSE: {:.6}", epoch, loss)
+                };
+        
+
+                Python::with_gil(|py| {
+                    py_print(py, &msg).expect("failed to print to Python stdout");
+                });
+            }
+
 
             for j in 1..=self.npl[self.l] {
                 let error = self.x[self.l][j] - sample_outputs[j-1];
