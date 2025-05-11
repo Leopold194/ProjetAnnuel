@@ -3,7 +3,7 @@ target/
 .env
 dataset/images_flat.json
 dataset/images_and_genres.json
-
+dataset/*json
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
