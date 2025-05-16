@@ -26,11 +26,7 @@ pub trait LinearModelAbstract {
         let mut weights_without_bias = self.weights();
         weights_without_bias.pop();
 
-        // utils::py_print(py, "test2");
-
         let mut z = utils::matvecmul(&x, &weights_without_bias);
-
-        // utils::py_print(py, "test3");
 
         let bias = self.weights().last().cloned().unwrap_or(0.0);
         for val in z.iter_mut() {
@@ -121,7 +117,7 @@ pub trait LinearModelAbstract {
         self.set_label_map_float(label_map_float.clone());
 
         let mut losses = Vec::with_capacity(epochs);
-        
+
         if algo == "gradient-descent" {
             for _ in 0..epochs {
                 let a = self.model(py, self.get_x().clone());

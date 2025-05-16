@@ -77,10 +77,6 @@ impl LinearModelAbstract for RBF {
     fn loss(&self) -> Vec<f64> { self.loss.clone() }
     fn get_x(&self) -> &Vec<Vec<f64>> { &self.x }
     fn get_y(&self) -> &labels::LabelsEnum { &self.y }
-    // fn get_centers(&self) -> &Vec<Vec<f64>> { &self.centers }
-    // fn set_centers(&self) { self.centers = centers; }
-    // fn get_centers(&self) -> &Vec<Vec<f64>> { &self.centers }
-    // fn set_centers(&self) { self.centers = centers; }
     fn get_model_type(&self) -> &str { &self.model_type }
     fn set_model_type(&mut self, model_type: String) { self.model_type = model_type; }
     fn get_label_map_str(&self) -> Option<(String, String)> { self.label_map_str.clone() }
