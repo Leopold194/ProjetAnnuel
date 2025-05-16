@@ -2,6 +2,9 @@ mod utils;
 mod linear;
 mod labels;
 mod mlp;
+mod rbf;
+mod lloyd;
+mod linear_abstract;
 
 use pyo3::prelude::*;
 use pyo3::types::PyList;
@@ -127,6 +130,7 @@ fn projetannuel(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_class::<linear::LinearModel>()?;
     m.add_class::<mlp::MLP>()?;
+    m.add_class::<rbf::RBF>()?;
 
     m.add_function(wrap_pyfunction!(labels::float_labels,m)?)?;
     m.add_function(wrap_pyfunction!(labels::string_labels,m)?)?;

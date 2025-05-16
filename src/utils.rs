@@ -177,8 +177,21 @@ pub fn tanh(x: f64) -> f64 {
 }
 
 #[allow(dead_code)]
-fn py_print(py: Python<'_>, msg: &str) -> PyResult<()> {
+pub fn py_print(py: Python<'_>, msg: &str) -> PyResult<()> {
     let builtins = PyModule::import(py, "builtins")?;
     builtins.call_method1("print", (msg,))?;  // call the “print” attribute with one arg
     Ok(())
+}
+
+#[allow(dead_code)]
+pub fn convert_x_to_phi(x: Vec<f64>, centers: Vec<Vec<f64>>, gamma: f64) -> Vec<f64> {
+    let mut new_x = Vec::with_capacity(centers.len());
+    for center in &centers {
+        let mut norm = 0.0;
+        for idx in 0..x.len() {
+            norm += (x[idx] - center[idx]) * (x[idx] - center[idx]);
+        }
+        new_x.push((-gamma * norm).exp());
+    }
+    new_x
 }

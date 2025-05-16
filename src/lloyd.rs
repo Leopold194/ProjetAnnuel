@@ -98,7 +98,10 @@ fn euclidean_distance(a: &[f64], b: &[f64]) -> f64 {
 }
 
 #[warn(dead_code)]
-pub fn lloyd(X: Vec<Vec<f64>>, mut centers: Vec<Vec<f64>>, eps: f64,) -> (Vec<Vec<f64>>, Vec<Vec<Vec<f64>>>) {
+pub fn lloyd(X: Vec<Vec<f64>>, K: i32, eps: f64) -> Vec<Vec<f64>> {
+
+    let mut centers: Vec<Vec<f64>> = kmeans_plus_plus(K, X.clone());
+
     loop {
         let clusters = attrib_points(centers.clone(), X.clone());
 
@@ -124,5 +127,6 @@ pub fn lloyd(X: Vec<Vec<f64>>, mut centers: Vec<Vec<f64>>, eps: f64,) -> (Vec<Ve
         centers = new_centers;
     }
 
-    (centers.clone(), attrib_points(centers.clone(), X.clone()))
+    // (centers.clone(), attrib_points(centers.clone(), X.clone()))
+    centers.clone()
 }

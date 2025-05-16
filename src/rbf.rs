@@ -1,5 +1,6 @@
 use crate::utils;
 use crate::labels;
+use crate::lloyd::lloyd;
 use crate::linear_abstract::LinearModelAbstract;
 
 use pyo3::prelude::*;
@@ -7,7 +8,7 @@ use pyo3::types::{ PyString, PyFloat, PyDict };
 use rand::Rng;
 
 #[pyclass]
-pub struct LinearModel {
+pub struct RBF {
     #[pyo3(get, set)]
     pub weights: Vec<f64>,
     #[pyo3(get, set)]
@@ -18,22 +19,37 @@ pub struct LinearModel {
     pub y: labels::LabelsEnum,
     #[pyo3(get, set)]
     pub model_type: String,
+    #[pyo3(get, set)]
+    pub centers: Vec<Vec<f64>>,
+    #[pyo3(get, set)]
+    pub gamma: f64,
     pub label_map_str: Option<(String, String)>,
     pub label_map_float: Option<(f64, f64)>,
 }
 
 #[pymethods]
-impl LinearModel {
+impl RBF {
     #[new]
-    pub fn new(x: Vec<Vec<f64>>, y: labels::LabelsEnum) -> Self {
-        let dim = x[0].len() + 1;
+    pub fn new(py: Python<'_>, x: Vec<Vec<f64>>, y: labels::LabelsEnum, gamma: f64, k: i32) -> Self {
+        
+        let centers = lloyd(x.clone(), k, 2.22e-16);
+        
+        let mut phi: Vec<Vec<f64>> = Vec::with_capacity(x.len());
+        for row in x.clone() {
+            phi.push(utils::convert_x_to_phi(row, centers.clone(), gamma))
+        }
+
+        let dim = phi[0].len() + 1;
         let weights = (0..dim).map(|_| rand::random::<f64>()).collect();
-        LinearModel {
+        
+        RBF {
             weights,
             loss: vec![],
-            x,
+            x: phi,
             y,
             model_type: String::new(),
+            centers,
+            gamma,
             label_map_str: None,
             label_map_float: None,
         }
@@ -48,19 +64,23 @@ impl LinearModel {
     }
 
     pub fn predict(&self, py: Python<'_>, x: Vec<f64>) -> PyResult<PyObject> {
-        <Self as LinearModelAbstract>::predict(self, py, x)
+        <Self as LinearModelAbstract>::predict(self, py, utils::convert_x_to_phi(x, self.centers.clone(), self.gamma))
     }
 
     pub fn predict_proba(&self, py: Python<'_>, x: Vec<f64>) -> PyResult<PyObject> {
-        <Self as LinearModelAbstract>::predict_proba(self, py, x)
+        <Self as LinearModelAbstract>::predict_proba(self, py, utils::convert_x_to_phi(x, self.centers.clone(), self.gamma))
     }
 }
 
-impl LinearModelAbstract for LinearModel {
+impl LinearModelAbstract for RBF {
     fn weights(&self) -> Vec<f64> { self.weights.clone() }
     fn loss(&self) -> Vec<f64> { self.loss.clone() }
     fn get_x(&self) -> &Vec<Vec<f64>> { &self.x }
     fn get_y(&self) -> &labels::LabelsEnum { &self.y }
+    // fn get_centers(&self) -> &Vec<Vec<f64>> { &self.centers }
+    // fn set_centers(&self) { self.centers = centers; }
+    // fn get_centers(&self) -> &Vec<Vec<f64>> { &self.centers }
+    // fn set_centers(&self) { self.centers = centers; }
     fn get_model_type(&self) -> &str { &self.model_type }
     fn set_model_type(&mut self, model_type: String) { self.model_type = model_type; }
     fn get_label_map_str(&self) -> Option<(String, String)> { self.label_map_str.clone() }
