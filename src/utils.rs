@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use pyo3::prelude::*;
 
 /// Various utility functions for matrix operations and other calculations.
 
@@ -173,4 +174,11 @@ pub fn calc_determinant(matrice: Vec<Vec<f64>>) -> f64 {
 #[allow(dead_code)]
 pub fn tanh(x: f64) -> f64 {
     (x.exp() - (-x).exp()) / (x.exp() + (-x).exp())
+}
+
+#[allow(dead_code)]
+fn py_print(py: Python<'_>, msg: &str) -> PyResult<()> {
+    let builtins = PyModule::import(py, "builtins")?;
+    builtins.call_method1("print", (msg,))?;  // call the “print” attribute with one arg
+    Ok(())
 }
