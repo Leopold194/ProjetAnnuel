@@ -4,6 +4,7 @@ mod labels;
 mod mlp;
 mod rbf;
 mod lloyd;
+mod svm;
 mod linear_abstract;
 
 use pyo3::prelude::*;
@@ -72,7 +73,7 @@ fn accuracy_score(py: Python, y_true: PyObject, y_pred: PyObject) -> PyResult<f6
 
 #[allow(dead_code)]
 #[pyfunction]
-fn mean_squared_error(py: Python, y_true: PyObject, y_pred: PyObject) -> PyResult<f64> {
+fn mean_error(py: Python, y_true: PyObject, y_pred: PyObject, me_type: &str) -> PyResult<f64> {
 
     let y_true = y_true.downcast_bound::<PyList>(py)?;
     let y_pred = y_pred.downcast_bound::<PyList>(py)?;
@@ -84,13 +85,21 @@ fn mean_squared_error(py: Python, y_true: PyObject, y_pred: PyObject) -> PyResul
     }
 
     let val_nb = y_true.len();
-    let mut errors = Vec::with_capacity(val_nb);
+    let mut sum: f64 = 0.0;
 
     for (a, b) in y_true.iter().zip(y_pred.iter()) {
         if let (Ok(va), Ok(vb)) = (a.extract::<f64>(), b.extract::<f64>()) {
-            errors.push(va - vb);
+            if me_type == "MSE" {
+                sum += (va - vb) * (va - vb);
+            } else if me_type == "MAE" {
+                sum += (va - vb).abs();
+            }
         } else if let (Ok(va), Ok(vb)) = (a.extract::<i64>(), b.extract::<i64>()) {
-            errors.push((va - vb) as f64);
+            if me_type == "MSE" {
+                sum += ((va - vb) * (va - vb)) as f64;
+            } else if me_type == "MAE" {
+                sum += (va - vb).abs() as f64;
+            }
         } else {
             return Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
                 "Les types ne correspondent pas pour la comparaison (doivent être float ou int)",
@@ -98,20 +107,25 @@ fn mean_squared_error(py: Python, y_true: PyObject, y_pred: PyObject) -> PyResul
         }
     }
 
-    let mut squared_errors_sum: f64 = 0.0;
+    Ok(sum / val_nb as f64)
+}
 
-    for val in errors {
-        squared_errors_sum += val * val;
-    }
+#[allow(dead_code)]
+#[pyfunction]
+fn mean_squared_error(py: Python, y_true: PyObject, y_pred: PyObject) -> PyResult<f64> {
+    Ok(mean_error(py, y_true, y_pred, "MSE")?)
+}
 
-    Ok(squared_errors_sum / val_nb as f64)
+#[allow(dead_code)]
+#[pyfunction]
+fn mean_absolute_error(py: Python, y_true: PyObject, y_pred: PyObject) -> PyResult<f64> {
+    Ok(mean_error(py, y_true, y_pred, "MAE")?)
 }
 
 #[allow(dead_code)]
 #[pyfunction]
 fn root_mean_squared_error(py: Python, y_true: PyObject, y_pred: PyObject) -> PyResult<f64> {
     let mse = mean_squared_error(py, y_true, y_pred);
-    
     Ok(mse?.sqrt())
 }
 
@@ -131,6 +145,7 @@ fn projetannuel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<linear::LinearModel>()?;
     m.add_class::<mlp::MLP>()?;
     m.add_class::<rbf::RBF>()?;
+    m.add_class::<svm::SVM>()?;
 
     m.add_function(wrap_pyfunction!(labels::float_labels,m)?)?;
     m.add_function(wrap_pyfunction!(labels::string_labels,m)?)?;
