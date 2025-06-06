@@ -11,4 +11,4 @@ crate-type = ["cdylib"]
 pyo3 = {version= "0.24.0", features = ["extension-module"] }
 rand = "*"
 rand_distr = "*"
-
+ordered-float = "4"

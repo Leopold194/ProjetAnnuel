@@ -1,5 +1,7 @@
 use rand::prelude::*;
 use rand_distr::weighted::WeightedIndex;
+use crate::utils::py_print;
+use pyo3::prelude::*;
 
 fn squared_distance(x: Vec<f64>, y: Vec<f64>) -> f64 {
     let mut sum = 0.0;
@@ -9,7 +11,7 @@ fn squared_distance(x: Vec<f64>, y: Vec<f64>) -> f64 {
     sum
 }
 
-fn kmeans_plus_plus(K: i32, X: Vec<Vec<f64>>) -> Vec<Vec<f64>> {
+fn kmeans_plus_plus(py: Python<'_>, K: i32, X: Vec<Vec<f64>>) -> Vec<Vec<f64>> {
     let mut X_copy = X.clone();
     let mut centers = Vec::with_capacity(K as usize);
     let mut rng = rand::rng();
@@ -98,9 +100,9 @@ fn euclidean_distance(a: &[f64], b: &[f64]) -> f64 {
 }
 
 #[warn(dead_code)]
-pub fn lloyd(X: Vec<Vec<f64>>, K: i32, eps: f64) -> Vec<Vec<f64>> {
+pub fn lloyd(py: Python<'_>, X: Vec<Vec<f64>>, K: i32, eps: f64) -> Vec<Vec<f64>> {
 
-    let mut centers: Vec<Vec<f64>> = kmeans_plus_plus(K, X.clone());
+    let mut centers: Vec<Vec<f64>> = kmeans_plus_plus(py, K, X.clone());
 
     loop {
         let clusters = attrib_points(centers.clone(), X.clone());
