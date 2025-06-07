@@ -6,6 +6,7 @@ mod rbf;
 mod lloyd;
 mod svm;
 mod linear_abstract;
+mod svm;
 
 use pyo3::prelude::*;
 use pyo3::types::PyList;

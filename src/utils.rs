@@ -59,6 +59,13 @@ pub fn transpose(matrix:&Vec<Vec<f64>>) -> Vec<Vec<f64>> {
     transposed
 }
 
+pub fn dot_product(a: &[f64], b: &[f64]) -> f64 {
+    if a.len() != b.len() {
+        panic!("Vector sizes do not match for dot product.");
+    }
+    a.iter().zip(b.iter()).map(|(x, y)| x * y).sum()
+}
+
 /// Inverts a matrix using Gaussian elimination.
 pub fn inverse(mut matrix: Vec<Vec<f64>>, call: &str) -> Vec<Vec<f64>> {
     // Inversion de matrice, copie une fois en mémoire la matrice (pour avoir les deux en meme temps)
