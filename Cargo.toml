@@ -12,3 +12,4 @@ pyo3 = {version= "0.24.0", features = ["extension-module"] }
 rand = "*"
 rand_distr = "*"
 ordered-float = "4"
+osqp="0.6"
