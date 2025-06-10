@@ -1,7 +1,8 @@
 use pyo3::prelude::*;
+use serde::{Serialize, Deserialize};
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum LabelsEnum {
     Str(Vec<String>),
     Float(Vec<f64>),

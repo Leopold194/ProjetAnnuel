@@ -8,8 +8,10 @@ use std::collections::HashMap;
 use pyo3::prelude::*;
 use pyo3::types::{ PyString, PyFloat, PyDict };
 use rand::Rng;
+use serde::{Serialize, Deserialize};
 
 #[pyclass]
+#[derive(Serialize, Deserialize)]
 pub struct RBF {
     #[pyo3(get, set)]
     pub weights: Vec<Vec<f64>>,
@@ -74,6 +76,19 @@ impl RBF {
 
     pub fn predict(&self, py: Python<'_>, x: Vec<f64>) -> PyResult<PyObject> {
         <Self as LinearModelAbstract>::predict(self, py, utils::convert_x_to_phi(x, self.centers.clone(), self.gamma))
+    }
+
+    pub fn save(&self, path: &str) -> PyResult<()> {
+        let file = std::fs::File::create(path).map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
+        serde_json::to_writer_pretty(file, &self).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(())
+    }
+
+    #[staticmethod]
+    pub fn load(path: &str) -> PyResult<Self> {
+        let file = std::fs::File::open(path).map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
+        let model: RBF = serde_json::from_reader(file).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(model)
     }
 
     // pub fn predict_proba(&self, py: Python<'_>, x: Vec<f64>) -> PyResult<PyObject> {
