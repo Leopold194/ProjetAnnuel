@@ -1,7 +1,9 @@
 use pyo3::prelude::*;
 use rand::Rng;
+use serde::{Serialize, Deserialize};
 
 #[pyclass]
+#[derive(Serialize, Deserialize)]
 pub struct MLP {
     npl: Vec<usize>, // neurons per layer
     weights: Vec<Vec<Vec<f64>>>,  
@@ -172,5 +174,17 @@ impl MLP {
     fn predict(&mut self, inputs: Vec<f64>, is_classification: bool) -> Vec<f64> {
         self.propagate(inputs, is_classification);
         self.x[self.l][1..].to_vec()
+    }
+    pub fn save(&self, path: &str) -> PyResult<()> {
+        let file = std::fs::File::create(path).map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
+        serde_json::to_writer_pretty(file, &self).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(())
+    }
+
+    #[staticmethod]
+    pub fn load(path: &str) -> PyResult<Self> {
+        let file = std::fs::File::open(path).map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
+        let model: MLP = serde_json::from_reader(file).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(model)
     }
 }

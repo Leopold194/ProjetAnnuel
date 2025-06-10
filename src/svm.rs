@@ -2,9 +2,10 @@ use pyo3::prelude::*;
 use osqp::{CscMatrix, Problem, Settings};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::exceptions::PyValueError;
-
+use serde::{Serialize, Deserialize};
 #[pyclass]
 #[derive(Clone)]
+#[derive(Serialize, Deserialize)]
 pub enum SVMKernelType {
     Linear(),
     Polynomial { degree: usize },
@@ -47,6 +48,7 @@ impl SVMKernelType {
 
 
 #[pyclass]
+#[derive(Serialize, Deserialize)]
 pub struct SVM {
     #[pyo3(get)]
     pub alpha: Vec<f64>,
@@ -158,7 +160,7 @@ impl SVM {
     }
 
     Ok(())
-}
+    }
 
     //faudrait que je fasse une diff entre mono et plusieurs, j'imagine une enum
     fn predict(&self, x_list: Vec<Vec<f64>>) -> PyResult<Vec<f64>> {
@@ -172,6 +174,19 @@ impl SVM {
             preds.push(if sum >= 0.0 { 1.0 } else { -1.0 });
         }
         Ok(preds)
+    }
+
+    pub fn save(&self, path: &str) -> PyResult<()> {
+        let file = std::fs::File::create(path).map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
+        serde_json::to_writer_pretty(file, &self).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(())
+    }
+
+    #[staticmethod]
+    pub fn load(path: &str) -> PyResult<Self> {
+        let file = std::fs::File::open(path).map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
+        let model: SVM = serde_json::from_reader(file).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(model)
     }
 }
 
