@@ -142,6 +142,8 @@ fn projetannuel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(mean_squared_error,m)?)?;
     m.add_function(wrap_pyfunction!(root_mean_squared_error,m)?)?;
 
+    m.add_function(wrap_pyfunction!(utils::one_hot_encoder,m)?)?;
+
     m.add_class::<linear::LinearModel>()?;
     m.add_class::<mlp::MLP>()?;
     m.add_class::<rbf::RBF>()?;
@@ -149,6 +151,6 @@ fn projetannuel(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_function(wrap_pyfunction!(labels::float_labels,m)?)?;
     m.add_function(wrap_pyfunction!(labels::string_labels,m)?)?;
-
+    
     Ok(())
 }

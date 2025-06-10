@@ -18,7 +18,9 @@ pub struct RBF {
     #[pyo3(get, set)]
     pub x: Vec<Vec<f64>>,
     #[pyo3(get, set)]
-    pub y: labels::LabelsEnum,
+    pub y: Vec<Vec<f64>>,
+    #[pyo3(get, set)]
+    pub labels_original: Option<labels::LabelsEnum>,
     #[pyo3(get, set)]
     pub model_type: String,
     #[pyo3(get, set)]
@@ -34,7 +36,8 @@ pub struct RBF {
 #[pymethods]
 impl RBF {
     #[new]
-    pub fn new(py: Python<'_>, x: Vec<Vec<f64>>, y: labels::LabelsEnum, gamma: f64, k: i32) -> Self {
+    #[pyo3(signature = (x, y, gamma, k, labels_original=None))]
+    pub fn new(py: Python<'_>, x: Vec<Vec<f64>>, y: Vec<Vec<f64>>, gamma: f64, k: i32, labels_original: Option<labels::LabelsEnum>) -> Self {
         
         if k > x.len() as i32 {
             panic!("You cannot have more centers than inputs.")
@@ -55,6 +58,7 @@ impl RBF {
             loss: vec![],
             x: phi,
             y,
+            labels_original,
             model_type: String::new(),
             centers,
             gamma,
@@ -68,12 +72,12 @@ impl RBF {
         <Self as LinearModelAbstract>::train_classification(self, py, epochs, learning_rate, algo)
     }
 
-    pub fn train_regression(&mut self) {
-        <Self as LinearModelAbstract>::train_regression(self)
+    pub fn train_regression(&mut self, py: Python<'_>) {
+        <Self as LinearModelAbstract>::train_regression(self, py)
     }
 
-    pub fn predict(&self, py: Python<'_>, x: Vec<f64>) -> PyResult<PyObject> {
-        <Self as LinearModelAbstract>::predict(self, py, utils::convert_x_to_phi(x, self.centers.clone(), self.gamma))
+    pub fn predict(&self, py: Python<'_>, x: Vec<f64>, return_label: Option<bool>) -> PyResult<PyObject> {
+        <Self as LinearModelAbstract>::predict(self, py, utils::convert_x_to_phi(x, self.centers.clone(), self.gamma), return_label)
     }
 
     // pub fn predict_proba(&self, py: Python<'_>, x: Vec<f64>) -> PyResult<PyObject> {
@@ -86,7 +90,8 @@ impl LinearModelAbstract for RBF {
     fn loss(&self) -> Vec<f64> { self.loss.clone() }
     fn num_classes(&self) -> usize { self.num_classes.clone() }
     fn get_x(&self) -> &Vec<Vec<f64>> { &self.x }
-    fn get_y(&self) -> &labels::LabelsEnum { &self.y }
+    fn get_y(&self) -> &Vec<Vec<f64>> { &self.y }
+    fn get_labels_original(&self) -> Option<&labels::LabelsEnum> { self.labels_original.as_ref() }
     fn get_model_type(&self) -> &str { &self.model_type }
     fn set_model_type(&mut self, model_type: String) { self.model_type = model_type; }
     fn get_label_map_str(&self) -> Option<HashMap<String, usize>> { self.label_map_str.clone() }

@@ -1,6 +1,7 @@
 use std::fmt::Display;
 use pyo3::prelude::*;
-
+use ordered_float::OrderedFloat;
+use std::collections::{HashSet, HashMap};
 /// Various utility functions for matrix operations and other calculations.
 
 /// Multiplies two vectors element-wise.
@@ -194,4 +195,27 @@ pub fn convert_x_to_phi(x: Vec<f64>, centers: Vec<Vec<f64>>, gamma: f64) -> Vec<
         new_x.push((-gamma * norm).exp());
     }
     new_x
+}
+
+#[pyfunction]
+#[allow(dead_code)]
+pub fn one_hot_encoder(y: Vec<f64>) -> Vec<Vec<f64>> {    
+    let wrapped_labels: Vec<OrderedFloat<f64>> = y.iter().cloned().map(OrderedFloat).collect();
+    let mut unique_labels: Vec<OrderedFloat<f64>> = wrapped_labels.iter().cloned().collect::<HashSet<_>>().into_iter().collect();
+    unique_labels.sort();
+
+    let label_to_index: HashMap<OrderedFloat<f64>, usize> = unique_labels.iter()
+        .enumerate()
+        .map(|(idx, label)| (*label, idx))
+        .collect();
+
+    wrapped_labels.into_iter()
+        .map(|label| {
+            let mut one_hot = vec![0.0; unique_labels.len()];
+            if let Some(&idx) = label_to_index.get(&label) {
+                one_hot[idx] = 1.0;
+            }
+            one_hot
+        })
+        .collect()
 }

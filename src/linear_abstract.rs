@@ -13,7 +13,9 @@ pub trait LinearModelAbstract {
     fn num_classes(&self) -> usize;
 
     fn get_x(&self) -> &Vec<Vec<f64>>;
-    fn get_y(&self) -> &labels::LabelsEnum;
+    fn get_y(&self) -> &Vec<Vec<f64>>;
+    fn get_labels_original(&self) -> Option<&labels::LabelsEnum>;
+
     fn get_model_type(&self) -> &str;
     fn set_model_type(&mut self, model_type: String);
 
@@ -96,82 +98,80 @@ pub trait LinearModelAbstract {
     fn train_classification(&mut self, py: Python<'_>, epochs: usize, learning_rate: f64, algo: &str) {
         self.set_model_type("classification".to_string());
 
-        // let mut label_map_str = None;
-        // let mut label_map_float = None;
         let mut mean_losses = vec![0.0; epochs];
 
-        let y_labels = self.get_y().clone();
-        let labels_norm: Vec<_> = match &y_labels {
-            labels::LabelsEnum::Str(labels) => {
-                // Créer mapping: label string → index
-                let mut uniq = labels.clone();
-                uniq.sort();
-                uniq.dedup();
-                let map: HashMap<String, usize> = uniq
-                    .iter()
-                    .enumerate()
-                    .map(|(i, label)| (label.clone(), i))
-                    .collect();
+        // Suppose que get_y() renvoie maintenant Vec<Vec<f64>> → one-hot encoding
+        let y_one_hot = self.get_y().clone();  // Vec<Vec<f64>>
+        let num_classes = y_one_hot[0].len();
+        self.set_num_classes(num_classes);
 
-                // Stocker l'inverse: index → label
-                self.set_label_map_str(Some(map.clone()));
-
-                labels.iter().map(|l| map[l] as f64).collect()
+        match self.get_labels_original() {
+            Some(labels_enum) => {
+                match labels_enum {
+                    labels::LabelsEnum::Str(labels) => {
+                        // Créer mapping label -> index
+                        let mut uniq = labels.clone();
+                        uniq.sort();
+                        uniq.dedup();
+                        let map: HashMap<String, usize> = uniq
+                            .iter()
+                            .enumerate()
+                            .map(|(i, label)| (label.clone(), i))
+                            .collect();
+                        self.set_label_map_str(Some(map));
+                    },
+                    labels::LabelsEnum::Float(values) => {
+                        let mut uniq = values.clone();
+                        uniq.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                        uniq.dedup();
+                        let map: HashMap<OrderedFloat<f64>, usize> = uniq
+                            .iter()
+                            .map(|v| OrderedFloat(*v))
+                            .enumerate()
+                            .map(|(i, v)| (v, i))
+                            .collect();
+                        self.set_label_map_float(Some(map));
+                    }
+                }
             }
-            labels::LabelsEnum::Float(values) => {
-                let mut uniq = values.clone();
-                uniq.sort_by(|a, b| a.partial_cmp(b).unwrap());
-                uniq.dedup();
-                let map: HashMap<OrderedFloat<f64>, usize> = uniq
-                    .iter()
-                    .map(|v| OrderedFloat(*v))
-                    .enumerate()
-                    .map(|(i, v)| (v, i))
+            None => {
+                let map: HashMap<OrderedFloat<f64>, usize> = (0..10)
+                    .map(|i| (OrderedFloat(i as f64), i))
                     .collect();
-
-                self.set_label_map_float(Some(map.clone()));
-
-                values.iter().map(|v| map[&OrderedFloat(*v)] as f64).collect()
+                self.set_label_map_float(Some(map));
             }
-        };
+        }
 
-        // self.set_label_map_str(label_map_str.clone());
-        // self.set_label_map_float(label_map_float.clone());
 
-        let mut unique_classes = labels_norm.clone();
-        unique_classes.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        unique_classes.dedup();
-
+        // Initialiser les poids : un vecteur de poids par classe
         let dim = self.get_x()[0].len() + 1;
-        let mut weights = Vec::with_capacity(unique_classes.len());
+        let mut weights = Vec::with_capacity(num_classes);
 
-        for _ in 0..unique_classes.len() {
+        for _ in 0..num_classes {
             weights.push((0..dim).map(|_| rand::random::<f64>()).collect());
         }
 
         self.set_weights(weights);
 
-        self.set_num_classes(unique_classes.len());
-        let mut classes_weights = Vec::with_capacity(self.get_num_classes());
+        // One Vs All (chaque colonne de y_one_hot est la cible binaire pour la classe correspondante)
+        for class_idx in 0..num_classes {
+            let mut class_weights = Vec::with_capacity(dim);
 
-        // One Vs All
-
-        for (idx, class_label) in unique_classes.iter().enumerate() {
-            let mut class_weights = Vec::with_capacity(self.weights()[0].len());
-
-            let binary_y: Vec<f64> = labels_norm.iter().map(|v| if v == class_label { 1.0 } else { 0.0 }).collect();
+            // Créer un vecteur binaire_y pour la classe actuelle (colonne class_idx de y_one_hot)
+            let binary_y: Vec<f64> = y_one_hot.iter().map(|row| row[class_idx]).collect();
 
             if algo == "gradient-descent" {
                 for epoch in 0..epochs {
-                    let a = self.model(py, self.get_x().clone(), idx);
+                    let a = self.model(py, self.get_x().clone(), class_idx);
                     let l = self.calc_log_loss(binary_y.clone(), a.clone());
                     mean_losses[epoch] += l;
+
                     let grad = self.calc_gradients(a.clone(), self.get_x().clone(), binary_y.clone());
-                    class_weights = self.update_weights(grad, learning_rate, idx);
+                    class_weights = self.update_weights(grad, learning_rate, class_idx);
+
                     let mut all_weights = self.weights();
-                    all_weights[idx] = class_weights.clone();
+                    all_weights[class_idx] = class_weights.clone();
                     self.set_weights(all_weights);
-                    // ici mettre à jour les poids
                 }
             } else if algo == "rosenblatt" {
                 for epoch in 0..epochs {
@@ -179,39 +179,40 @@ pub trait LinearModelAbstract {
                     let i = rng.random_range(0..self.get_x().len());
                     let random_x = self.get_x()[i].clone();
 
-                    let prediction = self.model(py, vec![random_x.clone()], idx);
+                    let prediction = self.model(py, vec![random_x.clone()], class_idx);
                     let error = binary_y[i] - prediction[0];
 
-                    let mut w = self.weights()[idx].clone();
+                    let mut w = self.weights()[class_idx].clone();
                     for j in 0..w.len() - 1 {
                         w[j] += learning_rate * error * random_x[j];
                     }
                     let last_index = w.len() - 1;
                     w[last_index] += learning_rate * error;
-                    class_weights = w;
-                    let mut all_weights = self.weights();
-                    all_weights[idx] = class_weights.clone();
-                    self.set_weights(all_weights);
-                    // self.set_weights(w);
 
-                    // Calcul de la loss (ex : log-loss)
+                    class_weights = w;
+
+                    let mut all_weights = self.weights();
+                    all_weights[class_idx] = class_weights.clone();
+                    self.set_weights(all_weights);
+
                     let l = self.calc_log_loss(binary_y.clone(), prediction);
                     mean_losses[epoch] += l;
                 }
             } else {
-                panic!("This algorithm is not supported.")
+                panic!("This algorithm is not supported.");
             }
-            classes_weights.push(class_weights);
         }
-        self.set_weights(classes_weights);
-        
+
+        // Final update
         for epoch in 0..epochs {
-            mean_losses[epoch] /= self.get_num_classes() as f64;
+            mean_losses[epoch] /= num_classes as f64;
         }
+
         self.set_loss(mean_losses);
     }
 
-    fn train_regression(&mut self) {
+
+    fn train_regression(&mut self, py: Python<'_>) {
         self.set_model_type("regression".to_string());
 
         let mut x = self.get_x().clone();
@@ -219,10 +220,14 @@ pub trait LinearModelAbstract {
             row.push(1.0);
         }
 
-        let y = match self.get_y() {
-            labels::LabelsEnum::Str(_) => panic!("Regression incompatible with String labels"),
-            labels::LabelsEnum::Float(v) => v.clone(),
-        };
+        // let y = match self.get_y() {
+        //     labels::LabelsEnum::Str(_) => panic!("Regression incompatible with String labels"),
+        //     labels::LabelsEnum::Float(v) => v.clone(),
+        // };
+
+        let y = self.get_y()[0].clone();
+
+        utils::py_print(py, &format!("{:?}", self.get_y()));
 
         let xt = utils::transpose(&x);
         let xtx = utils::matmatmul(&xt, &x);
@@ -261,7 +266,7 @@ pub trait LinearModelAbstract {
         utils::vecvecmul(&self.weights()[0], &x_bias).iter().sum()
     }
 
-    fn predict(&self, py: Python<'_>, x: Vec<f64>) -> PyResult<PyObject> {
+    fn predict(&self, py: Python<'_>, x: Vec<f64>, return_label: Option<bool>) -> PyResult<PyObject> {
         match self.get_model_type() {
             "regression" => Ok(PyFloat::new(py, self.predict_regression(x)).into()),
             "classification" => {
@@ -281,36 +286,45 @@ pub trait LinearModelAbstract {
                         }
                     }
 
-                    if let Some(map) = self.get_label_map_str() {
-                        let label = map.iter()
-                            .find(|&(_, &v)| v == predicted_class_idx)
-                            .map(|(k, _)| k.clone())
-                            .unwrap_or_else(|| predicted_class_idx.to_string());
-                        Ok(PyString::new(py, &label).into())
-                    } else if let Some(map) = self.get_label_map_float() {
-                        let label = map.iter()
-                            .find(|&(_, &v)| v == predicted_class_idx)
-                            .map(|(k, _)| *k)
-                            .unwrap_or(OrderedFloat(predicted_class_idx as f64));
-                        Ok(PyFloat::new(py, *label).into())
+                    if return_label.unwrap_or(false) {
+                        if let Some(map) = self.get_label_map_str() {
+                            let label = map.iter()
+                                .find(|&(_, &v)| v == predicted_class_idx)
+                                .map(|(k, _)| k.clone())
+                                .unwrap_or_else(|| predicted_class_idx.to_string());
+                            Ok(PyString::new(py, &label).into())
+                        } else if let Some(map) = self.get_label_map_float() {
+                            let label = map.iter()
+                                .find(|&(_, &v)| v == predicted_class_idx)
+                                .map(|(k, _)| *k)
+                                .unwrap_or(OrderedFloat(predicted_class_idx as f64));
+                            Ok(PyFloat::new(py, *label).into())
+                        } else {
+                            Ok(PyFloat::new(py, predicted_class_idx as f64).into())
+                        }
                     } else {
                         Ok(PyFloat::new(py, predicted_class_idx as f64).into())
                     }
 
                 } else {
                     let prediction = self.predict_binary_classification(py, x);
-                    if let Some(map) = self.get_label_map_str() {
-                        let label = map.iter()
-                            .find(|&(_, &v)| v == if prediction > 0.0 { 1 } else { 0 })
-                            .map(|(k, _)| k.clone())
-                            .unwrap_or_else(|| prediction.to_string());
-                        Ok(PyString::new(py, &label).into())
-                    } else if let Some(map) = self.get_label_map_float() {
-                        let label = map.iter()
-                            .find(|&(_, &v)| v == if prediction > 0.0 { 1 } else { 0 })
-                            .map(|(k, _)| *k)
-                            .unwrap_or(OrderedFloat(prediction));
-                        Ok(PyFloat::new(py, *label).into())
+
+                    if return_label.unwrap_or(false) {
+                        if let Some(map) = self.get_label_map_str() {
+                            let label = map.iter()
+                                .find(|&(_, &v)| v == if prediction > 0.0 { 1 } else { 0 })
+                                .map(|(k, _)| k.clone())
+                                .unwrap_or_else(|| prediction.to_string());
+                            Ok(PyString::new(py, &label).into())
+                        } else if let Some(map) = self.get_label_map_float() {
+                            let label = map.iter()
+                                .find(|&(_, &v)| v == if prediction > 0.0 { 1 } else { 0 })
+                                .map(|(k, _)| *k)
+                                .unwrap_or(OrderedFloat(prediction));
+                            Ok(PyFloat::new(py, *label).into())
+                        } else {
+                            Ok(PyFloat::new(py, prediction).into())
+                        }
                     } else {
                         Ok(PyFloat::new(py, prediction).into())
                     }
