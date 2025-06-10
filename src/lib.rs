@@ -147,6 +147,7 @@ fn projetannuel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<rbf::RBF>()?;
     m.add_class::<svm::SVM>()?;
     m.add_class::<svm::SVMKernelType>()?;
+    m.add_class::<svm::SoftMargin>()?;
 
     m.add_function(wrap_pyfunction!(labels::float_labels,m)?)?;
     m.add_function(wrap_pyfunction!(labels::string_labels,m)?)?;

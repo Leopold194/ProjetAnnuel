@@ -175,6 +175,7 @@ impl MLP {
         self.propagate(inputs, is_classification);
         self.x[self.l][1..].to_vec()
     }
+    
     pub fn save(&self, path: &str) -> PyResult<()> {
         let file = std::fs::File::create(path).map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
         serde_json::to_writer_pretty(file, &self).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
