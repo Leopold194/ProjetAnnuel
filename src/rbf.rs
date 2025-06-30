@@ -20,6 +20,10 @@ pub struct RBF {
     #[pyo3(get, set)]
     pub test_loss: Vec<f64>,
     #[pyo3(get, set)]
+    pub train_accuracy: Vec<f64>,
+    #[pyo3(get, set)]
+    pub test_accuracy: Vec<f64>,
+    #[pyo3(get, set)]
     pub x: Vec<Vec<f64>>,
     #[pyo3(get, set)]
     pub y: labels::LabelsEnum,
@@ -61,6 +65,8 @@ impl RBF {
             weights: vec![vec![]],
             train_loss: vec![],
             test_loss: vec![],
+            train_accuracy: vec![],
+            test_accuracy: vec![],
             x: phi,
             y,
             seed,
@@ -120,6 +126,8 @@ impl LinearModelAbstract for RBF {
     fn weights(&self) -> Vec<Vec<f64>> { self.weights.clone() }
     fn train_loss(&self) -> Vec<f64> { self.train_loss.clone() }
     fn test_loss(&self) -> Vec<f64> { self.test_loss.clone() }
+    fn train_accuracy(&self) -> Vec<f64> { self.train_accuracy.clone() }
+    fn test_accuracy(&self) -> Vec<f64> { self.test_accuracy.clone() }
     fn seed(&self) -> Option<u64> { self.seed.clone() }
     fn num_classes(&self) -> usize { self.num_classes.clone() }
     fn get_x(&self) -> &Vec<Vec<f64>> { &self.x }
@@ -133,6 +141,8 @@ impl LinearModelAbstract for RBF {
     fn set_weights(&mut self, w: Vec<Vec<f64>>) { self.weights = w; }
     fn set_train_loss(&mut self, l: Vec<f64>) { self.train_loss = l; }
     fn set_test_loss(&mut self, l: Vec<f64>) { self.test_loss = l; }
+    fn set_train_accuracy(&mut self, a: Vec<f64>) { self.train_accuracy = a; }
+    fn set_test_accuracy(&mut self, a: Vec<f64>) { self.test_accuracy = a; }
     fn get_num_classes(&self) -> usize { self.num_classes }
     fn set_num_classes(&mut self, num_classes: usize) {self.num_classes = num_classes; }
 }

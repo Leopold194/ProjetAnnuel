@@ -10,8 +10,13 @@ use rand::rngs::StdRng;
 
 pub trait LinearModelAbstract {
     fn weights(&self) -> Vec<Vec<f64>>;
+
     fn train_loss(&self) -> Vec<f64>;
     fn test_loss(&self) -> Vec<f64>;
+
+    fn train_accuracy(&self) -> Vec<f64>;
+    fn test_accuracy(&self) -> Vec<f64>;
+
     fn num_classes(&self) -> usize;
     fn seed(&self) -> Option<u64>;
 
@@ -29,8 +34,12 @@ pub trait LinearModelAbstract {
     fn set_label_map_float(&mut self, map: Option<HashMap<OrderedFloat<f64>, usize>>);
 
     fn set_weights(&mut self, w: Vec<Vec<f64>>);
+
     fn set_train_loss(&mut self, l: Vec<f64>);
     fn set_test_loss(&mut self, l: Vec<f64>);
+
+    fn set_train_accuracy(&mut self, acc: Vec<f64>);
+    fn set_test_accuracy(&mut self, acc: Vec<f64>);
     
     fn model(&self, py: Python<'_>, x: Vec<Vec<f64>>, idx: usize) -> Vec<f64> {
         let mut weights_without_bias = self.weights()[idx].clone();
@@ -97,6 +106,16 @@ pub trait LinearModelAbstract {
         w
     }
 
+    fn compute_accuracy(&mut self, y_true: Vec<f64>, y_pred: Vec<f64>) -> f64 {
+        let mut correct = 0;
+        for (yt, yp) in y_true.iter().zip(y_pred.iter()) {
+            if (*yt - *yp).abs() < 2.2e-16 {
+                correct += 1;
+            }
+        }
+        correct as f64 / y_true.len() as f64
+    }
+
     fn train_classification(&mut self, py: Python<'_>, epochs: usize, learning_rate: f64, algo: &str, x_test: Option<Vec<Vec<f64>>>, y_test: Option<labels::LabelsEnum>) {
         self.set_model_type("classification".to_string());
         let mut rng_opt: Option<StdRng> = self.seed().map(StdRng::seed_from_u64);
@@ -154,6 +173,9 @@ pub trait LinearModelAbstract {
         let mut mean_losses = vec![0.0; epochs];
         let mut mean_losses_test = vec![0.0; epochs];
 
+        let mut accuracy = vec![0.0; epochs];
+        let mut accuracy_test = vec![0.0; epochs];
+
         let mut unique_classes = labels_norm.clone();
         unique_classes.sort_by(|a, b| a.partial_cmp(b).unwrap());
         unique_classes.dedup();
@@ -182,6 +204,7 @@ pub trait LinearModelAbstract {
             let mut class_weights = Vec::with_capacity(self.weights()[0].len());
 
             let binary_y: Vec<f64> = labels_norm.iter().map(|v| if v == class_label { 1.0 } else { 0.0 }).collect();
+            let binary_y_test: Option<Vec<f64>> = labels_norm_test.as_ref().map(|test_labels| {test_labels.iter().map(|v| if v == class_label { 1.0 } else { 0.0 }).collect()});
 
             if algo == "gradient-descent" {
                 for epoch in 0..epochs {
@@ -189,16 +212,24 @@ pub trait LinearModelAbstract {
                     let l = self.calc_log_loss(binary_y.clone(), a.clone());
                     mean_losses[epoch] += l;
 
+                    let pred_train: Vec<f64> = a.iter().map(|&v| if v >= 0.5 { 1.0 } else { 0.0 }).collect();
+                    let acc = self.compute_accuracy(binary_y.clone(), pred_train.clone());
+                    accuracy[epoch] += acc;
+
                     let grad = self.calc_gradients(a.clone(), self.get_x().clone(), binary_y.clone());
                     class_weights = self.update_weights(grad, learning_rate, idx);
                     let mut all_weights = self.weights();
                     all_weights[idx] = class_weights.clone();
                     self.set_weights(all_weights);
 
-                    if let (Some(x_test_data), Some(labels_norm_test_vec)) = (&x_test, &labels_norm_test) {
+                    if let (Some(x_test_data), Some(binary_y_test_vec)) = (&x_test, &binary_y_test) {
                         let pred_test = self.model(py, x_test_data.clone(), idx);
-                        let test_loss = self.calc_log_loss(labels_norm_test_vec.clone(), pred_test);
+                        let test_loss = self.calc_log_loss(binary_y_test_vec.clone(), pred_test.clone());
                         mean_losses_test[epoch] += test_loss;
+
+                        let pred_test_classes: Vec<f64> = pred_test.iter().map(|&v| if v >= 0.5 { 1.0 } else { 0.0 }).collect();
+                        let acc_test = self.compute_accuracy(binary_y_test_vec.clone(), pred_test_classes.clone());
+                        accuracy_test[epoch] += acc_test;
                     }
                 }
             } else if algo == "rosenblatt" {
@@ -225,13 +256,21 @@ pub trait LinearModelAbstract {
                     all_weights[idx] = class_weights.clone();
                     self.set_weights(all_weights);
 
-                    let l = self.calc_log_loss(binary_y.clone(), prediction);
+                    let l = self.calc_log_loss(binary_y.clone(), prediction.clone());
                     mean_losses[epoch] += l;
 
-                    if let (Some(x_test_data), Some(labels_norm_test_vec)) = (&x_test, &labels_norm_test) {
+                    let pred_train: Vec<f64> = prediction.iter().map(|&v| if v >= 0.5 { 1.0 } else { 0.0 }).collect();
+                    let acc = self.compute_accuracy(binary_y.clone(), pred_train.clone());
+                    accuracy[epoch] += acc;
+
+                    if let (Some(x_test_data), Some(binary_y_test_vec)) = (&x_test, &binary_y_test) {
                         let pred_test = self.model(py, x_test_data.clone(), idx);
-                        let test_loss = self.calc_log_loss(labels_norm_test_vec.clone(), pred_test);
+                        let test_loss = self.calc_log_loss(binary_y_test_vec.clone(), pred_test.clone());
                         mean_losses_test[epoch] += test_loss;
+
+                        let pred_test_classes: Vec<f64> = pred_test.iter().map(|&v| if v >= 0.5 { 1.0 } else { 0.0 }).collect();
+                        let acc_test = self.compute_accuracy(binary_y_test_vec.clone(), pred_test_classes.clone());
+                        accuracy_test[epoch] += acc_test;
                     }
                 }
             } else {
@@ -244,11 +283,17 @@ pub trait LinearModelAbstract {
         for epoch in 0..epochs {
             if x_test.is_some() && y_test.is_some() {
                 mean_losses_test[epoch] /= self.get_num_classes() as f64;
+                accuracy_test[epoch] /= self.get_num_classes() as f64;
             }
+            accuracy[epoch] /= self.get_num_classes() as f64;
             mean_losses[epoch] /= self.get_num_classes() as f64;
         }
+
         self.set_train_loss(mean_losses);
         self.set_test_loss(mean_losses_test);
+
+        self.set_train_accuracy(accuracy);
+        self.set_test_accuracy(accuracy_test);
     }
 
     fn train_regression(&mut self) {
