@@ -1,4 +1,6 @@
 use rand::prelude::*;
+use rand::{Rng, SeedableRng};
+use rand::rngs::StdRng;
 use rand_distr::weighted::WeightedIndex;
 use crate::utils::py_print;
 use pyo3::prelude::*;
@@ -11,13 +13,19 @@ fn squared_distance(x: Vec<f64>, y: Vec<f64>) -> f64 {
     sum
 }
 
-fn kmeans_plus_plus(py: Python<'_>, K: i32, X: Vec<Vec<f64>>) -> Vec<Vec<f64>> {
+fn kmeans_plus_plus(py: Python<'_>, K: i32, X: Vec<Vec<f64>>, seed: Option<u64>) -> Vec<Vec<f64>> {
+    let mut rng_opt: Option<StdRng> = seed.map(StdRng::seed_from_u64);
     let mut X_copy = X.clone();
     let mut centers = Vec::with_capacity(K as usize);
-    let mut rng = rand::rng();
 
-    if let Some(random_elem) = X_copy.choose(&mut rng) {
-        centers.push(random_elem.clone());
+    if let Some(rng) = rng_opt.as_mut() {
+        if let Some(random_elem) = X_copy.choose(rng) {
+            centers.push(random_elem.clone());
+        }
+    } else {
+        if let Some(random_elem) = X_copy.choose(&mut rand::thread_rng()) {
+            centers.push(random_elem.clone());
+        }
     }
 
     while centers.len() < K as usize {
@@ -43,7 +51,11 @@ fn kmeans_plus_plus(py: Python<'_>, K: i32, X: Vec<Vec<f64>>) -> Vec<Vec<f64>> {
         } 
 
         let dist = WeightedIndex::new(&proba).unwrap();
-        let index = dist.sample(&mut rng);
+        let index = if let Some(rng) = rng_opt.as_mut() {
+            dist.sample(rng)
+        } else {
+            dist.sample(&mut rand::thread_rng())
+        };
         let new_center = X_copy[index].clone();
         X_copy.swap_remove(index);
         centers.push(new_center);
@@ -100,9 +112,9 @@ fn euclidean_distance(a: &[f64], b: &[f64]) -> f64 {
 }
 
 #[warn(dead_code)]
-pub fn lloyd(py: Python<'_>, X: Vec<Vec<f64>>, K: i32, eps: f64) -> Vec<Vec<f64>> {
+pub fn lloyd(py: Python<'_>, X: Vec<Vec<f64>>, K: i32, eps: f64, seed: Option<u64>) -> Vec<Vec<f64>> {
 
-    let mut centers: Vec<Vec<f64>> = kmeans_plus_plus(py, K, X.clone());
+    let mut centers: Vec<Vec<f64>> = kmeans_plus_plus(py, K, X.clone(), seed);
 
     loop {
         let clusters = attrib_points(centers.clone(), X.clone());

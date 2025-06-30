@@ -16,11 +16,15 @@ pub struct RBF {
     #[pyo3(get, set)]
     pub weights: Vec<Vec<f64>>,
     #[pyo3(get, set)]
-    pub loss: Vec<f64>,
+    pub train_loss: Vec<f64>,
+    #[pyo3(get, set)]
+    pub test_loss: Vec<f64>,
     #[pyo3(get, set)]
     pub x: Vec<Vec<f64>>,
     #[pyo3(get, set)]
     pub y: labels::LabelsEnum,
+    #[pyo3(get)]
+    pub seed: Option<u64>,
     #[pyo3(get, set)]
     pub model_type: String,
     #[pyo3(get, set)]
@@ -36,13 +40,14 @@ pub struct RBF {
 #[pymethods]
 impl RBF {
     #[new]
-    pub fn new(py: Python<'_>, x: Vec<Vec<f64>>, y: labels::LabelsEnum, gamma: f64, k: i32) -> Self {
+    #[pyo3(signature = (x, y, gamma, k, seed=None))]
+    pub fn new(py: Python<'_>, x: Vec<Vec<f64>>, y: labels::LabelsEnum, gamma: f64, k: i32, seed: Option<u64>) -> Self {
         
         if k > x.len() as i32 {
             panic!("You cannot have more centers than inputs.")
         }
 
-        let centers = lloyd(py, x.clone(), k, 2.22e-16);
+        let centers = lloyd(py, x.clone(), k, 2.22e-16, seed);
         
         let mut phi: Vec<Vec<f64>> = Vec::with_capacity(x.len());
         for row in x.clone() {
@@ -54,9 +59,11 @@ impl RBF {
         
         RBF {
             weights: vec![vec![]],
-            loss: vec![],
+            train_loss: vec![],
+            test_loss: vec![],
             x: phi,
             y,
+            seed,
             model_type: String::new(),
             centers,
             gamma,
@@ -66,8 +73,21 @@ impl RBF {
         }
     }
 
-    pub fn train_classification(&mut self, py: Python<'_>, epochs: usize, learning_rate: f64, algo: &str) {
-        <Self as LinearModelAbstract>::train_classification(self, py, epochs, learning_rate, algo)
+    #[pyo3(signature = (epochs, learning_rate, algo=None, x_test=None, y_test=None))]
+    pub fn train_classification(&mut self, py: Python<'_>, epochs: usize, learning_rate: f64, algo: Option<String>, x_test: Option<Vec<Vec<f64>>>, y_test: Option<labels::LabelsEnum>) {
+        let algo = algo.as_deref().unwrap_or("gradient-descent");
+
+        let phi = if let Some(ref x_test_data) = x_test {
+            let mut phi_vec = Vec::with_capacity(x_test_data.len());
+            for row in x_test_data {
+                phi_vec.push(utils::convert_x_to_phi(row.clone(), self.centers.clone(), self.gamma));
+            }
+            Some(phi_vec)
+        } else {
+            None
+        };
+
+        <Self as LinearModelAbstract>::train_classification(self, py, epochs, learning_rate, algo, phi, y_test)
     }
 
     pub fn train_regression(&mut self) {
@@ -98,7 +118,9 @@ impl RBF {
 
 impl LinearModelAbstract for RBF {
     fn weights(&self) -> Vec<Vec<f64>> { self.weights.clone() }
-    fn loss(&self) -> Vec<f64> { self.loss.clone() }
+    fn train_loss(&self) -> Vec<f64> { self.train_loss.clone() }
+    fn test_loss(&self) -> Vec<f64> { self.test_loss.clone() }
+    fn seed(&self) -> Option<u64> { self.seed.clone() }
     fn num_classes(&self) -> usize { self.num_classes.clone() }
     fn get_x(&self) -> &Vec<Vec<f64>> { &self.x }
     fn get_y(&self) -> &labels::LabelsEnum { &self.y }
@@ -109,7 +131,8 @@ impl LinearModelAbstract for RBF {
     fn set_label_map_str(&mut self, map: Option<HashMap<String, usize>>) { self.label_map_str = map; }
     fn set_label_map_float(&mut self, map: Option<HashMap<OrderedFloat<f64>, usize>>) { self.label_map_float = map; }
     fn set_weights(&mut self, w: Vec<Vec<f64>>) { self.weights = w; }
-    fn set_loss(&mut self, l: Vec<f64>) { self.loss = l; }
+    fn set_train_loss(&mut self, l: Vec<f64>) { self.train_loss = l; }
+    fn set_test_loss(&mut self, l: Vec<f64>) { self.test_loss = l; }
     fn get_num_classes(&self) -> usize { self.num_classes }
     fn set_num_classes(&mut self, num_classes: usize) {self.num_classes = num_classes; }
 }

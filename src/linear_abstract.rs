@@ -5,12 +5,15 @@ use ordered_float::OrderedFloat;
 use std::collections::HashMap;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyString};
-use rand::Rng;
+use rand::{Rng, SeedableRng};
+use rand::rngs::StdRng;
 
 pub trait LinearModelAbstract {
     fn weights(&self) -> Vec<Vec<f64>>;
-    fn loss(&self) -> Vec<f64>;
+    fn train_loss(&self) -> Vec<f64>;
+    fn test_loss(&self) -> Vec<f64>;
     fn num_classes(&self) -> usize;
+    fn seed(&self) -> Option<u64>;
 
     fn get_x(&self) -> &Vec<Vec<f64>>;
     fn get_y(&self) -> &labels::LabelsEnum;
@@ -26,7 +29,8 @@ pub trait LinearModelAbstract {
     fn set_label_map_float(&mut self, map: Option<HashMap<OrderedFloat<f64>, usize>>);
 
     fn set_weights(&mut self, w: Vec<Vec<f64>>);
-    fn set_loss(&mut self, l: Vec<f64>);
+    fn set_train_loss(&mut self, l: Vec<f64>);
+    fn set_test_loss(&mut self, l: Vec<f64>);
     
     fn model(&self, py: Python<'_>, x: Vec<Vec<f64>>, idx: usize) -> Vec<f64> {
         let mut weights_without_bias = self.weights()[idx].clone();
@@ -93,12 +97,9 @@ pub trait LinearModelAbstract {
         w
     }
 
-    fn train_classification(&mut self, py: Python<'_>, epochs: usize, learning_rate: f64, algo: &str) {
+    fn train_classification(&mut self, py: Python<'_>, epochs: usize, learning_rate: f64, algo: &str, x_test: Option<Vec<Vec<f64>>>, y_test: Option<labels::LabelsEnum>) {
         self.set_model_type("classification".to_string());
-
-        // let mut label_map_str = None;
-        // let mut label_map_float = None;
-        let mut mean_losses = vec![0.0; epochs];
+        let mut rng_opt: Option<StdRng> = self.seed().map(StdRng::seed_from_u64);
 
         let y_labels = self.get_y().clone();
         let labels_norm: Vec<_> = match &y_labels {
@@ -135,8 +136,23 @@ pub trait LinearModelAbstract {
             }
         };
 
-        // self.set_label_map_str(label_map_str.clone());
-        // self.set_label_map_float(label_map_float.clone());
+        let labels_norm_test = if let (Some(x_test_data), Some(y_test_labels)) = (&x_test, &y_test) {
+            Some(match y_test_labels {
+                labels::LabelsEnum::Str(labels) => {
+                    let map = self.get_label_map_str().expect("No label map for strings");
+                    labels.iter().map(|l| map[l] as f64).collect::<Vec<f64>>()
+                }
+                labels::LabelsEnum::Float(values) => {
+                    let map = self.get_label_map_float().expect("No label map for floats");
+                    values.iter().map(|v| map[&OrderedFloat(*v)] as f64).collect::<Vec<f64>>()
+                }
+            })
+        } else {
+            None
+        };
+
+        let mut mean_losses = vec![0.0; epochs];
+        let mut mean_losses_test = vec![0.0; epochs];
 
         let mut unique_classes = labels_norm.clone();
         unique_classes.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -145,8 +161,14 @@ pub trait LinearModelAbstract {
         let dim = self.get_x()[0].len() + 1;
         let mut weights = Vec::with_capacity(unique_classes.len());
 
-        for _ in 0..unique_classes.len() {
-            weights.push((0..dim).map(|_| rand::random::<f64>()).collect());
+        if let Some(rng) = rng_opt.as_mut() {
+            for _ in 0..unique_classes.len() {
+                weights.push((0..dim).map(|_| rng.r#gen::<f64>()).collect());
+            }
+        } else {
+            for _ in 0..unique_classes.len() {
+                weights.push((0..dim).map(|_| rand::random::<f64>()).collect());
+            }
         }
 
         self.set_weights(weights);
@@ -166,17 +188,27 @@ pub trait LinearModelAbstract {
                     let a = self.model(py, self.get_x().clone(), idx);
                     let l = self.calc_log_loss(binary_y.clone(), a.clone());
                     mean_losses[epoch] += l;
+
                     let grad = self.calc_gradients(a.clone(), self.get_x().clone(), binary_y.clone());
                     class_weights = self.update_weights(grad, learning_rate, idx);
                     let mut all_weights = self.weights();
                     all_weights[idx] = class_weights.clone();
                     self.set_weights(all_weights);
-                    // ici mettre à jour les poids
+
+                    if let (Some(x_test_data), Some(labels_norm_test_vec)) = (&x_test, &labels_norm_test) {
+                        let pred_test = self.model(py, x_test_data.clone(), idx);
+                        let test_loss = self.calc_log_loss(labels_norm_test_vec.clone(), pred_test);
+                        mean_losses_test[epoch] += test_loss;
+                    }
                 }
             } else if algo == "rosenblatt" {
                 for epoch in 0..epochs {
-                    let mut rng = rand::rng();
-                    let i = rng.random_range(0..self.get_x().len());
+                    let i = if let Some(rng) = rng_opt.as_mut() {
+                        rng.gen_range(0..self.get_x().len())
+                    } else {
+                        rand::thread_rng().gen_range(0..self.get_x().len())
+                    };
+                    // let i = rng.random_range(0..self.get_x().len());
                     let random_x = self.get_x()[i].clone();
 
                     let prediction = self.model(py, vec![random_x.clone()], idx);
@@ -192,11 +224,15 @@ pub trait LinearModelAbstract {
                     let mut all_weights = self.weights();
                     all_weights[idx] = class_weights.clone();
                     self.set_weights(all_weights);
-                    // self.set_weights(w);
 
-                    // Calcul de la loss (ex : log-loss)
                     let l = self.calc_log_loss(binary_y.clone(), prediction);
                     mean_losses[epoch] += l;
+
+                    if let (Some(x_test_data), Some(labels_norm_test_vec)) = (&x_test, &labels_norm_test) {
+                        let pred_test = self.model(py, x_test_data.clone(), idx);
+                        let test_loss = self.calc_log_loss(labels_norm_test_vec.clone(), pred_test);
+                        mean_losses_test[epoch] += test_loss;
+                    }
                 }
             } else {
                 panic!("This algorithm is not supported.")
@@ -204,11 +240,15 @@ pub trait LinearModelAbstract {
             classes_weights.push(class_weights);
         }
         self.set_weights(classes_weights);
-        
+
         for epoch in 0..epochs {
+            if x_test.is_some() && y_test.is_some() {
+                mean_losses_test[epoch] /= self.get_num_classes() as f64;
+            }
             mean_losses[epoch] /= self.get_num_classes() as f64;
         }
-        self.set_loss(mean_losses);
+        self.set_train_loss(mean_losses);
+        self.set_test_loss(mean_losses_test);
     }
 
     fn train_regression(&mut self) {

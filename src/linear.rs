@@ -15,11 +15,15 @@ pub struct LinearModel {
     #[pyo3(get, set)]
     pub weights: Vec<Vec<f64>>,
     #[pyo3(get, set)]
-    pub loss: Vec<f64>,
+    pub train_loss: Vec<f64>,
+    #[pyo3(get, set)]
+    pub test_loss: Vec<f64>,
     #[pyo3(get, set)]
     pub x: Vec<Vec<f64>>,
     #[pyo3(get, set)]
     pub y: labels::LabelsEnum,
+    #[pyo3(get)]
+    pub seed: Option<u64>,
     #[pyo3(get, set)]
     pub model_type: String,
     pub label_map_str: Option<HashMap<String, usize>>,
@@ -31,14 +35,17 @@ pub struct LinearModel {
 #[pymethods]
 impl LinearModel {
     #[new]
-    pub fn new(x: Vec<Vec<f64>>, y: labels::LabelsEnum) -> Self {
+    #[pyo3(signature = (x, y, seed=None))]
+    pub fn new(x: Vec<Vec<f64>>, y: labels::LabelsEnum, seed: Option<u64>) -> Self {
         // let dim = x[0].len() + 1;
         // let weights = (0..dim).map(|_| rand::random::<f64>()).collect();
         LinearModel {
             weights: vec![vec![]],
-            loss: vec![],
+            train_loss: vec![],
+            test_loss: vec![],
             x,
             y,
+            seed,
             model_type: String::new(),
             label_map_str: None,
             label_map_float: None,
@@ -46,8 +53,10 @@ impl LinearModel {
         }
     }
 
-    pub fn train_classification(&mut self, py: Python<'_>, epochs: usize, learning_rate: f64, algo: &str) {
-        <Self as LinearModelAbstract>::train_classification(self, py, epochs, learning_rate, algo)
+    #[pyo3(signature = (epochs, learning_rate, algo=None, x_test=None, y_test=None))]
+    pub fn train_classification(&mut self, py: Python<'_>, epochs: usize, learning_rate: f64, algo: Option<String>, x_test: Option<Vec<Vec<f64>>>, y_test: Option<labels::LabelsEnum>) {
+        let algo = algo.as_deref().unwrap_or("gradient-descent");
+        <Self as LinearModelAbstract>::train_classification(self, py, epochs, learning_rate, algo, x_test, y_test)
     }
 
     pub fn train_regression(&mut self) {
@@ -78,7 +87,9 @@ impl LinearModel {
 
 impl LinearModelAbstract for LinearModel {
     fn weights(&self) -> Vec<Vec<f64>> { self.weights.clone() }
-    fn loss(&self) -> Vec<f64> { self.loss.clone() }
+    fn train_loss(&self) -> Vec<f64> { self.train_loss.clone() }
+    fn test_loss(&self) -> Vec<f64> { self.test_loss.clone() }
+    fn seed(&self) -> Option<u64> { self.seed.clone() }
     fn num_classes(&self) -> usize { self.num_classes.clone() }
     fn get_x(&self) -> &Vec<Vec<f64>> { &self.x }
     fn get_y(&self) -> &labels::LabelsEnum { &self.y }
@@ -89,7 +100,8 @@ impl LinearModelAbstract for LinearModel {
     fn set_label_map_str(&mut self, map: Option<HashMap<String, usize>>) { self.label_map_str = map; }
     fn set_label_map_float(&mut self, map: Option<HashMap<OrderedFloat<f64>, usize>>) { self.label_map_float = map; }
     fn set_weights(&mut self, w: Vec<Vec<f64>>) { self.weights = w; }
-    fn set_loss(&mut self, l: Vec<f64>) { self.loss = l; }
+    fn set_train_loss(&mut self, l: Vec<f64>) { self.train_loss = l; }
+    fn set_test_loss(&mut self, l: Vec<f64>) { self.test_loss = l; }
     fn get_num_classes(&self) -> usize { self.num_classes }
     fn set_num_classes(&mut self, num_classes: usize) {self.num_classes = num_classes; }
 }
