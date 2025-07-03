@@ -96,7 +96,7 @@ def get_file_ids(uri: str = "mongodb://localhost:27017", db_name="movies") -> li
     db, _ = init_db_fs(uri, db_name)
     return [doc["_id"] for doc in db.fs.files.find({}, {"_id": 1})]
 
-def load_posters_with_size(size: tuple, mongo_uri="mongodb://localhost:27017", db_name="movies", bucket_name="fs"):
+def load_posters_with_size(size: tuple, genres: list = None, mongo_uri="mongodb://localhost:27017", db_name="movies", bucket_name="fs"):
     """
     Charge toutes les posters avec la taille spécifiée depuis GridFS.
     Si elles n'existent pas, redimensionne les fullsize, les stocke en base et les retourne.
@@ -107,7 +107,12 @@ def load_posters_with_size(size: tuple, mongo_uri="mongodb://localhost:27017", d
     db = client[db_name]
     fs = gridfs.GridFS(db, collection=bucket_name)
 
-    matching_files = list(db[f"{bucket_name}.files"].find({"metadata.size.width": width, "metadata.size.height": height}))
+    if genres is None:
+        matching_files = list(db[f"{bucket_name}.files"].find({"metadata.size.width": width, "metadata.size.height": height}))
+    else:
+        matching_files = []
+        for g in genres:
+            matching_files.extend(list(db[f"{bucket_name}.files"].find({"metadata.size.width": width, "metadata.size.height": height, "metadata.genre": g})))
 
     images = []
     genres = []
