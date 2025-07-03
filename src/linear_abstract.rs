@@ -216,12 +216,6 @@ pub trait LinearModelAbstract {
                     let acc = self.compute_accuracy(binary_y.clone(), pred_train.clone());
                     accuracy[epoch] += acc;
 
-                    let grad = self.calc_gradients(a.clone(), self.get_x().clone(), binary_y.clone());
-                    class_weights = self.update_weights(grad, learning_rate, idx);
-                    let mut all_weights = self.weights();
-                    all_weights[idx] = class_weights.clone();
-                    self.set_weights(all_weights);
-
                     if let (Some(x_test_data), Some(binary_y_test_vec)) = (&x_test, &binary_y_test) {
                         let pred_test = self.model(py, x_test_data.clone(), idx);
                         let test_loss = self.calc_log_loss(binary_y_test_vec.clone(), pred_test.clone());
@@ -231,6 +225,12 @@ pub trait LinearModelAbstract {
                         let acc_test = self.compute_accuracy(binary_y_test_vec.clone(), pred_test_classes.clone());
                         accuracy_test[epoch] += acc_test;
                     }
+
+                    let grad = self.calc_gradients(a.clone(), self.get_x().clone(), binary_y.clone());
+                    class_weights = self.update_weights(grad, learning_rate, idx);
+                    let mut all_weights = self.weights();
+                    all_weights[idx] = class_weights.clone();
+                    self.set_weights(all_weights);                    
                 }
             } else if algo == "rosenblatt" {
                 for epoch in 0..epochs {
@@ -244,17 +244,6 @@ pub trait LinearModelAbstract {
 
                     let prediction = self.model(py, vec![random_x.clone()], idx);
                     let error = binary_y[i] - prediction[0];
-
-                    let mut w = self.weights()[idx].clone();
-                    for j in 0..w.len() - 1 {
-                        w[j] += learning_rate * error * random_x[j];
-                    }
-                    let last_index = w.len() - 1;
-                    w[last_index] += learning_rate * error;
-                    class_weights = w;
-                    let mut all_weights = self.weights();
-                    all_weights[idx] = class_weights.clone();
-                    self.set_weights(all_weights);
 
                     let l = self.calc_log_loss(binary_y.clone(), prediction.clone());
                     mean_losses[epoch] += l;
@@ -272,6 +261,17 @@ pub trait LinearModelAbstract {
                         let acc_test = self.compute_accuracy(binary_y_test_vec.clone(), pred_test_classes.clone());
                         accuracy_test[epoch] += acc_test;
                     }
+
+                    let mut w = self.weights()[idx].clone();
+                    for j in 0..w.len() - 1 {
+                        w[j] += learning_rate * error * random_x[j];
+                    }
+                    let last_index = w.len() - 1;
+                    w[last_index] += learning_rate * error;
+                    class_weights = w;
+                    let mut all_weights = self.weights();
+                    all_weights[idx] = class_weights.clone();
+                    self.set_weights(all_weights);
                 }
             } else {
                 panic!("This algorithm is not supported.")
