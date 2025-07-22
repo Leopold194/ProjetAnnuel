@@ -12,6 +12,7 @@ use serde::{Serialize, Deserialize};
 #[pyclass]
 #[derive(Serialize, Deserialize)]
 pub struct LinearModel {
+    model_name:String,
     #[pyo3(get, set)]
     pub weights: Vec<Vec<f64>>,
     #[pyo3(get, set)]
@@ -44,6 +45,7 @@ impl LinearModel {
         // let dim = x[0].len() + 1;
         // let weights = (0..dim).map(|_| rand::random::<f64>()).collect();
         LinearModel {
+            model_name:String::from("LinearModel"),
             weights: vec![vec![]],
             train_loss: vec![],
             test_loss: vec![],

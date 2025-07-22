@@ -8,6 +8,7 @@ use serde::{Serialize, Deserialize};
 #[pyclass]
 #[derive(Serialize, Deserialize)]
 pub struct MLP {
+    model_type: String,
     npl: Vec<usize>, // neurons per layer
     weights: Vec<Vec<Vec<f64>>>,  
     l: usize, //layers    
@@ -67,6 +68,7 @@ impl MLP {
         }
 
         MLP { 
+            model_type:String::from("MLP"),
             npl, 
             weights, 
             l, 

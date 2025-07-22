@@ -13,6 +13,7 @@ use serde::{Serialize, Deserialize};
 #[pyclass]
 #[derive(Serialize, Deserialize)]
 pub struct RBF {
+    model_name:String,
     #[pyo3(get, set)]
     pub weights: Vec<Vec<f64>>,
     #[pyo3(get, set)]
@@ -62,6 +63,7 @@ impl RBF {
         // let weights = (0..dim).map(|_| rand::random::<f64>()).collect();
         
         RBF {
+            model_name:String::from("RBF"),
             weights: vec![vec![]],
             train_loss: vec![],
             test_loss: vec![],

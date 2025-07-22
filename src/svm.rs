@@ -26,6 +26,7 @@ pub enum SoftMargin {
 #[pyclass]
 #[derive(Serialize, Deserialize)]
 pub struct SVM {
+    model_name:String,
     #[pyo3(get)]
     pub alpha: Vec<f64>,
     #[pyo3(get)]
@@ -44,6 +45,7 @@ pub struct SVM {
 #[pyclass]
 #[derive(Serialize, Deserialize)]
 pub struct SVMOvR {
+    model_name:String,
     classifiers: Vec<SVM>,
     classes: Vec<i32>,  // Utiliser i32 au lieu de f64 pour les classes
     kernel: SVMKernelType,   
@@ -54,6 +56,7 @@ pub struct SVMOvR {
 #[pyclass]
 #[derive(Serialize, Deserialize)]
 pub struct SVMOvO {
+    model_name:String,
     classifiers: Vec<((i32, i32), SVM)>,
     classes: Vec<i32>,
     kernel: SVMKernelType,   
@@ -123,6 +126,7 @@ impl SVM {
     #[new]
     pub fn new(kernel: SVMKernelType, margin: Option<SoftMargin>) -> Self {
         SVM {
+            model_name : String::from("SVM"),
             alpha: vec![],
             support_vectors: vec![],
             support_labels: vec![],
@@ -316,6 +320,7 @@ impl SVMOvR {
     #[new]
     pub fn new(kernel: SVMKernelType, margin: Option<SoftMargin>) -> Self {
         SVMOvR {
+            model_name:String::from("SVMOvR"),
             classifiers: Vec::new(),
             classes: Vec::new(),
             kernel,
@@ -391,6 +396,7 @@ impl SVMOvO {
     #[new]
     pub fn new(kernel: SVMKernelType, margin: Option<SoftMargin>) -> Self {
         SVMOvO {
+            model_name: String::from("SVMOvO"),
             classifiers: Vec::new(),
             classes: Vec::new(),
             kernel,
