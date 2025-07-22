@@ -115,9 +115,9 @@ def load_posters_with_size(size: tuple, genres: list = None, mongo_uri="mongodb:
             matching_files.extend(list(db[f"{bucket_name}.files"].find({"metadata.size.width": width, "metadata.size.height": height, "metadata.genre": g})))
 
     images = []
-    genres = []
 
     if matching_files:
+        genres = []
         print(f"📦 Found {len(matching_files)} images of size {width}x{height}")
         for doc in tqdm(matching_files, desc="📥 Loading resized images"):
             try:
@@ -133,8 +133,12 @@ def load_posters_with_size(size: tuple, genres: list = None, mongo_uri="mongodb:
                 print(f"❌ Missing file for {doc['_id']}")
     else:
         print(f"🛠 No resized images found : resizing fullsize images to {width}x{height}...")
-
-        fullsize_files = list(db[f"{bucket_name}.files"].find({"metadata.fullsize": True}))
+        if genres is None:
+            fullsize_files = list(db[f"{bucket_name}.files"].find({"metadata.fullsize": True}))
+        else:
+            fullsize_files=[]
+            for g in genres:
+                fullsize_files.extend(list(db[f"{bucket_name}.files"].find({"metadata.fullsize":True, "metadata.genre": g})))             
         print(len(fullsize_files))
         for doc in tqdm(fullsize_files, desc="🛠 Resizing and saving"):
             try:
@@ -158,6 +162,68 @@ def load_posters_with_size(size: tuple, genres: list = None, mongo_uri="mongodb:
                 print(f"❌ Error processing {doc['filename']}: {e}")
 
     return images, genres
+
+def load_posters_with_size(size: tuple, genres: list = None, mongo_uri="mongodb://localhost:27017", db_name="movies", bucket_name="fs"):
+    """
+    Charge toutes les posters avec la taille spécifiée depuis GridFS.
+    Si certaines sont manquantes, redimensionne les fullsize correspondantes, les stocke et les retourne.
+    """
+    width, height = size
+    client = MongoClient(mongo_uri)
+    db = client[db_name]
+    fs = gridfs.GridFS(db, collection=bucket_name)
+
+    # Step 1: Find existing resized images
+    resized_query = {"metadata.size.width": width, "metadata.size.height": height}
+    if genres:
+        resized_query["metadata.genre"] = {"$in": genres}
+    resized_files = list(db[f"{bucket_name}.files"].find(resized_query))
+    resized_filenames = set(doc["filename"] for doc in resized_files)
+
+    # Step 2: Find all fullsize images
+    fullsize_query = {"metadata.fullsize": True}
+    if genres:
+        fullsize_query["metadata.genre"] = {"$in": genres}
+    fullsize_files = list(db[f"{bucket_name}.files"].find(fullsize_query))
+
+    images = []
+    result_genres = []
+
+    # Step 3: Load already resized images
+    print(f"📦 Found {len(resized_files)} resized images of size {width}x{height}")
+    for doc in tqdm(resized_files, desc="📥 Loading resized images"):
+        try:
+            image_data = fs.get(doc["_id"]).read()
+            image = Image.open(BytesIO(image_data)).convert("RGB")
+            flat_array = np.array(image).flatten()
+            images.append(flat_array)
+            result_genres.append(doc["metadata"].get("genre", "Unknown"))
+        except gridfs.errors.NoFile:
+            print(f"❌ Missing file for {doc['_id']}")
+
+    # Step 4: Resize missing images
+    to_resize = [doc for doc in fullsize_files if doc["filename"] not in resized_filenames]
+    print(f"🛠 Found {len(to_resize)} fullsize images to resize to {width}x{height}")
+    for doc in tqdm(to_resize, desc="🛠 Resizing and saving missing images"):
+        try:
+            original = fs.get(doc["_id"]).read()
+            genre = doc["metadata"].get("genre", "Unknown")
+            img = Image.open(BytesIO(original)).convert("RGB")
+            resized_img = img.resize((width, height))
+
+            buf = BytesIO()
+            resized_img.save(buf, format="JPEG")
+            buf.seek(0)
+
+            fs.put(buf, filename=doc["filename"], metadata={"genre": genre, "fullsize": False, "size": {"width": width, "height": height}})
+
+            flat_array = np.array(resized_img).flatten()
+            images.append(flat_array)
+            result_genres.append(genre)
+        except Exception as e:
+            print(f"❌ Error processing {doc['filename']}: {e}")
+
+    return images, result_genres
 
 def stock_metrics(train_loss: list, test_loss: list, train_accuracy: list, test_accuracy: list, model_params: dict, model: str, mongo_uri="mongodb://localhost:27017", db_name="movies"):
     client = MongoClient(mongo_uri)

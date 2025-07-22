@@ -118,7 +118,6 @@ pub fn lloyd(py: Python<'_>, X: Vec<Vec<f64>>, K: i32, eps: f64, seed: Option<u6
 
     loop {
         let clusters = attrib_points(centers.clone(), X.clone());
-
         let mut new_centers = Vec::with_capacity(centers.len());
         for cluster in &clusters {
             if cluster.is_empty() {
