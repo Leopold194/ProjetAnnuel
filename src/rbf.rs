@@ -119,6 +119,12 @@ impl RBF {
         Ok(model)
     }
 
+    #[staticmethod]
+    pub fn load_string(json_string: &str) -> PyResult<Self> {
+        let model: RBF = serde_json::from_str(json_string).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(model)
+    }
+
     // pub fn predict_proba(&self, py: Python<'_>, x: Vec<f64>) -> PyResult<PyObject> {
     //     <Self as LinearModelAbstract>::predict_proba(self, py, utils::convert_x_to_phi(x, self.centers.clone(), self.gamma))
     // }
