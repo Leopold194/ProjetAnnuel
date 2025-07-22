@@ -2,7 +2,6 @@ const ENDPOINT = "http://127.0.0.1:5000"
 
 
 function list_model() {
-    // send request to ENDPOINT/api/models/list
     return fetch(`${ENDPOINT}/api/models/list`, {
         method: "GET",
         headers: {
@@ -63,5 +62,8 @@ document.getElementById("model-selector").addEventListener("change", function() 
       
 });
 
+document.getElementById('open-page-btn').addEventListener('click', () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL('singlepage/index.html') });
+  });
+  
 
-// get the selected model from the local storage
