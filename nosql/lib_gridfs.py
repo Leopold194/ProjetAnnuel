@@ -1,0 +1,145 @@
+import requests
+from PIL import Image
+from io import BytesIO
+import os
+from pymongo import MongoClient
+import gridfs
+import json
+from tqdm import tqdm
+
+# 1) Connexion
+def get_db(uri: str = "mongodb://localhost:27017", db_name: str = "posters") -> "pymongo.database.Database":
+    client = MongoClient(uri)
+    return client[db_name]
+
+# 2) Initialisation de GridFS (par défaut bucket "fs")
+def get_fs(db) -> gridfs.GridFS:
+    return gridfs.GridFS(db)
+
+# 3) Wrapper pour db et fs
+def init_db_fs(uri: str = "mongodb://localhost:27017", db_name: str = "posters") -> tuple:
+    db = get_db(uri, db_name)
+    fs = get_fs(db)
+    return db, fs
+
+def upload_posters_from_json(json_path, mongo_uri="mongodb://localhost:27017", db_name="movies", bucket_name="fs"):
+    client = MongoClient(mongo_uri)
+    db = client[db_name]
+    fs = gridfs.GridFS(db, collection=bucket_name)
+    
+    with open(json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    failed_images = []
+
+    for entry in data:
+        url = entry["poster"]
+        genre = entry["genre"]
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+
+            img = Image.open(BytesIO(response.content)).convert("RGB")
+            width, height = img.size
+
+            fs.put(BytesIO(response.content), filename=url.split("/")[-1], metadata={"genre": genre, "fullsize": True, "size": {"width": width, "height": height}})
+            #print(f"✅ Uploaded: {url} ({width}x{height})")
+
+        except Exception as e:
+            print(f"❌ Failed to upload {url}: {e}")
+            
+            failed_images.append(url)
+            
+    with open("errors.txt","w") as f:
+        f.write("\n".join(failed_images))
+        
+    return failed_images
+
+# Récupérer une image par son ObjectId
+def get_image(image_id, uri: str = "mongodb://localhost:27017", db_name: str = "posters") -> bytes:
+    _, fs = init_db_fs(uri, db_name)
+    try:
+        return fs.get(image_id).read()
+    except gridfs.errors.NoFile:
+        print(f"No file found with id {image_id}")
+        return None
+
+# Supprimer une image par son ObjectId
+def delete_image(image_id, uri: str = "mongodb://localhost:27017", db_name: str = "posters"):
+    _, fs = init_db_fs(uri, db_name)
+    try:
+        fs.delete(image_id)
+        print(f"Deleted image {image_id}")
+    except Exception as e:
+        print(f"Error deleting {image_id}: {e}")
+
+# Lister tous les ObjectId présents dans GridFS
+def get_file_ids(uri: str = "mongodb://localhost:27017", db_name: str = "posters") -> list:
+    db, _ = init_db_fs(uri, db_name)
+    return [doc["_id"] for doc in db.fs.files.find({}, {"_id": 1})]
+
+def load_posters_with_size(size: tuple, genres: list = None, mongo_uri="mongodb://localhost:27017", db_name="movies", bucket_name="fs"):
+    """
+    Charge toutes les posters avec la taille spécifiée depuis GridFS.
+    Si certaines sont manquantes, redimensionne les fullsize correspondantes, les stocke et les retourne.
+    """
+    width, height = size
+    client = MongoClient(mongo_uri)
+    db = client[db_name]
+    fs = gridfs.GridFS(db, collection=bucket_name)
+
+    # Step 1: Find existing resized images
+    resized_query = {"metadata.size.width": width, "metadata.size.height": height}
+    if genres:
+        resized_query["metadata.genre"] = {"$in": genres}
+    resized_files = list(db[f"{bucket_name}.files"].find(resized_query))
+    resized_filenames = set(doc["filename"] for doc in resized_files)
+
+    # Step 2: Find all fullsize images
+    fullsize_query = {"metadata.fullsize": True}
+    if genres:
+        fullsize_query["metadata.genre"] = {"$in": genres}
+    fullsize_files = list(db[f"{bucket_name}.files"].find(fullsize_query))
+
+    images = []
+    result_genres = []
+
+    # Step 3: Load already resized images
+    print(f"📦 Found {len(resized_files)} resized images of size {width}x{height}")
+    for doc in tqdm(resized_files, desc="📥 Loading resized images"):
+        try:
+            image_data = fs.get(doc["_id"]).read()
+            image = Image.open(BytesIO(image_data)).convert("RGB")
+            flat_array = np.array(image).flatten()
+            images.append(flat_array)
+            result_genres.append(doc["metadata"].get("genre", "Unknown"))
+        except gridfs.errors.NoFile:
+            print(f"❌ Missing file for {doc['_id']}")
+
+    # Step 4: Resize missing images
+    to_resize = [doc for doc in fullsize_files if doc["filename"] not in resized_filenames]
+    print(f"🛠 Found {len(to_resize)} fullsize images to resize to {width}x{height}")
+    for doc in tqdm(to_resize, desc="🛠 Resizing and saving missing images"):
+        try:
+            original = fs.get(doc["_id"]).read()
+            genre = doc["metadata"].get("genre", "Unknown")
+            img = Image.open(BytesIO(original)).convert("RGB")
+            resized_img = img.resize((width, height))
+
+            buf = BytesIO()
+            resized_img.save(buf, format="JPEG")
+            buf.seek(0)
+
+            fs.put(buf, filename=doc["filename"], metadata={"genre": genre, "fullsize": False, "size": {"width": width, "height": height}})
+
+            flat_array = np.array(resized_img).flatten()
+            images.append(flat_array)
+            result_genres.append(genre)
+        except Exception as e:
+            print(f"❌ Error processing {doc['filename']}: {e}")
+
+    return images, result_genres
+
+if __name__ == "__main__":
+    file_path = r"C:\Users\AIO\Documents\ESGI\2024-2025\ProjetAnnuel\dataset\movies_full_classif.json"
+    failed_images = upload_posters_from_json(file_path)

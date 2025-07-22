@@ -1,0 +1,40 @@
+timestamp,model_type,categories,image_size,train_accuracy,test_accuracy,Soft_Margin,gamma
+2025-07-21T09:35:25.190399,OneVsRest,"['Horreur', 'Animation']",10x15,0.5159,0.5114,0.1,0.01
+2025-07-21T09:36:17.379944,OneVsOne,"['Horreur', 'Animation']",10x15,0.5159,0.5114,0.1,0.01
+2025-07-21T13:56:29.156912,OneVsRest,"['Horreur', 'Animation']",10x15,0.4911,0.4987,0.1,0.005
+2025-07-21T13:57:24.964024,OneVsOne,"['Horreur', 'Animation']",10x15,0.4911,0.4987,0.1,0.005
+2025-07-21T13:59:09.286129,OneVsRest,"['Horreur', 'Animation']",10x15,0.6885,0.7013,0.1,0.05
+2025-07-21T13:59:58.638366,OneVsOne,"['Horreur', 'Animation']",10x15,0.6885,0.7013,0.1,0.05
+2025-07-21T14:01:52.388130,OneVsRest,"['Horreur', 'Animation']",10x15,0.7582,0.7519,0.5,0.01
+2025-07-21T14:02:56.852719,OneVsOne,"['Horreur', 'Animation']",10x15,0.7582,0.7519,0.5,0.01
+2025-07-21T14:04:58.450792,OneVsRest,"['Horreur', 'Animation']",10x15,0.7525,0.7519,0.5,0.005
+2025-07-21T14:05:58.598324,OneVsOne,"['Horreur', 'Animation']",10x15,0.7525,0.7519,0.5,0.005
+2025-07-21T14:07:44.923710,OneVsRest,"['Horreur', 'Animation']",10x15,0.7506,0.7671,0.5,0.05
+2025-07-21T14:08:41.378022,OneVsOne,"['Horreur', 'Animation']",10x15,0.7506,0.7671,0.5,0.05
+2025-07-21T14:10:45.288609,OneVsRest,"['Horreur', 'Animation']",10x15,0.7487,0.7342,1,0.01
+2025-07-21T14:11:47.298670,OneVsOne,"['Horreur', 'Animation']",10x15,0.7487,0.7342,1,0.01
+2025-07-21T14:13:30.801503,OneVsRest,"['Horreur', 'Animation']",10x15,0.7449,0.7544,1,0.005
+2025-07-21T14:14:31.904101,OneVsOne,"['Horreur', 'Animation']",10x15,0.7449,0.7544,1,0.005
+2025-07-21T14:15:44.231262,OneVsRest,"['Horreur', 'Animation']",10x15,0.769,0.7747,1,0.05
+2025-07-21T14:16:35.318150,OneVsOne,"['Horreur', 'Animation']",10x15,0.769,0.7747,1,0.05
+2025-07-21T14:18:51.385633,OneVsRest,"['Horreur', 'Animation', 'Action']",10x15,0.4987,0.4684,0.1,0.01
+2025-07-21T14:19:56.161926,OneVsOne,"['Horreur', 'Animation', 'Action']",10x15,0.4987,0.4684,0.1,0.01
+2025-07-21T14:21:59.948630,OneVsRest,"['Horreur', 'Animation', 'Action']",10x15,0.4987,0.4684,0.1,0.005
+2025-07-21T14:23:05.373672,OneVsOne,"['Horreur', 'Animation', 'Action']",10x15,0.4987,0.4684,0.1,0.005
+2025-07-21T14:25:09.666884,OneVsRest,"['Horreur', 'Animation', 'Action']",10x15,0.5451,0.5165,0.1,0.05
+2025-07-21T14:26:11.768076,OneVsOne,"['Horreur', 'Animation', 'Action']",10x15,0.5451,0.5165,0.1,0.05
+2025-07-21T14:28:17.048792,OneVsRest,"['Horreur', 'Animation', 'Action']",10x15,0.7532,0.7215,0.5,0.01
+2025-07-21T14:29:23.899983,OneVsOne,"['Horreur', 'Animation', 'Action']",10x15,0.7532,0.7215,0.5,0.01
+2025-07-21T14:31:26.424045,OneVsRest,"['Horreur', 'Animation', 'Action']",10x15,0.7602,0.7139,0.5,0.005
+2025-07-21T14:32:26.091140,OneVsOne,"['Horreur', 'Animation', 'Action']",10x15,0.7602,0.7139,0.5,0.005
+2025-07-21T14:34:15.347051,OneVsRest,"['Horreur', 'Animation', 'Action']",10x15,0.7659,0.7114,0.5,0.05
+2025-07-21T14:35:15.092288,OneVsOne,"['Horreur', 'Animation', 'Action']",10x15,0.7659,0.7114,0.5,0.05
+2025-07-21T14:37:18.325414,OneVsRest,"['Horreur', 'Animation', 'Action']",10x15,0.7805,0.7215,1,0.01
+2025-07-21T14:38:18.068119,OneVsOne,"['Horreur', 'Animation', 'Action']",10x15,0.7805,0.7215,1,0.01
+2025-07-21T14:40:02.363305,OneVsRest,"['Horreur', 'Animation', 'Action']",10x15,0.7811,0.7342,1,0.005
+2025-07-21T14:40:53.782654,OneVsOne,"['Horreur', 'Animation', 'Action']",10x15,0.7811,0.7342,1,0.005
+2025-07-21T14:42:10.102740,OneVsRest,"['Horreur', 'Animation', 'Action']",10x15,0.7786,0.7139,1,0.05
+2025-07-21T14:42:42.949191,OneVsOne,"['Horreur', 'Animation', 'Action']",10x15,0.7786,0.7139,1,0.05
+2025-07-21T14:42:43.946754,OneVsRest,"['Horreur', 'Animation']",20x20,1.0,1.0,0.1,0.01
+2025-07-22T00:03:42.217691,OneVsRest,"['Horreur', 'Animation', 'Action']",20x20,0.5156,0.4776,0.1,0.01
+2025-07-22T00:14:11.438384,OneVsRest,"['Horreur', 'Animation', 'Action']",20x20,0.4421,0.4163,0.1,0.005

@@ -1,5 +1,8 @@
 use pyo3::prelude::*;
-use rand::Rng;
+use rand::prelude::*;
+use rand::{Rng, SeedableRng};
+use rand::rngs::StdRng;
+use rand_distr::weighted::WeightedIndex;
 use serde::{Serialize, Deserialize};
 
 #[pyclass]
@@ -11,7 +14,9 @@ pub struct MLP {
     x:Vec<Vec<f64>>,
     deltas:Vec<Vec<f64>>,
     #[pyo3(get)]
-    loss:Vec<f64>
+    train_loss:Vec<f64>,
+    #[pyo3(get)]
+    test_loss:Vec<f64>,
 }
 
 
@@ -19,7 +24,8 @@ pub struct MLP {
 impl MLP {
 
     #[new]
-    fn new(npl: Vec<usize>) -> Self {
+    fn new(npl: Vec<usize>, seed: usize) -> Self {
+        let mut r = StdRng::seed_from_u64(seed as u64);
         let d = npl.clone();
         let l = d.len() - 1;
         let mut rng = rand::rng();
@@ -32,7 +38,7 @@ impl MLP {
             let mut bias_weights = Vec::with_capacity(d[layer] + 1);
             bias_weights.push(0.0);
             for _ in 1..=d[layer] {
-                bias_weights.push(rng.random_range(-1.0..1.0));
+                bias_weights.push(r.random_range(-1.0..1.0));
             }
             layer_weights.push(bias_weights);
     
@@ -40,7 +46,7 @@ impl MLP {
                 let mut neuron_weights = Vec::with_capacity(d[layer] + 1);
                 neuron_weights.push(0.0);
                 for _ in 1..=d[layer] {
-                    neuron_weights.push(rng.random_range(-1.0..1.0));
+                    neuron_weights.push(r.random_range(-1.0..1.0));
                 }
                 layer_weights.push(neuron_weights);
             }
@@ -66,7 +72,8 @@ impl MLP {
             l, 
             x, 
             deltas,
-            loss:Vec::new()
+            train_loss:Vec::new(),
+            test_loss:Vec::new()
         }
     }
 
@@ -92,15 +99,23 @@ impl MLP {
     }
 
     #[getter]
-    pub fn loss(&self) -> Vec<f64> {
-        self.loss.clone()
+    pub fn train_loss(&self) -> Vec<f64> {
+        self.train_loss.clone()
     }
 
-    fn train(&mut self, all_inputs: Vec<Vec<f64>>, all_outputs: Vec<Vec<f64>>, epochs: usize, alpha: f64, is_classification: bool) {
+    #[getter]
+    pub fn test_loss(&self)->Vec<f64>{
+        self.test_loss.clone()
+    }
+
+    fn train(&mut self, X_train: Vec<Vec<f64>>, y_train: Vec<Vec<f64>>, epochs: usize, alpha: f64, X_test:Vec<Vec<f64>>, y_test:Vec<Vec<f64>>,  is_classification: bool, seed:usize) {
         for _ in 0..epochs {
-            let k = rand::rng().random_range(0..all_inputs.len());
-            let sample_inputs = all_inputs[k].clone();
-            let sample_outputs = all_outputs[k].clone();
+            self.test_loss = Vec::new();
+            self.train_loss = Vec::new();
+            let mut rng = StdRng::seed_from_u64(seed as u64);
+            let k = rng.random_range(0..X_train.len());
+            let sample_inputs = X_train[k].clone();
+            let sample_outputs = y_train[k].clone();
             
             self.propagate(sample_inputs, is_classification);
 
@@ -123,8 +138,9 @@ impl MLP {
             }
 
             let num_outputs:f64 = self.npl[self.l] as f64;
-            self.loss.push(loss/num_outputs);
+            self.train_loss.push(loss/num_outputs);
 
+            
             // if epoch % 100 == 0 {
 
             //     let msg = if is_classification {
@@ -138,8 +154,30 @@ impl MLP {
             //         py_print(py, &msg).expect("failed to print to Python stdout");
             //     });
             // }
+            let mut test_loss_accum = 0.0;
+            for (xt, yt) in X_test.iter().zip(y_test.iter()) {
+                self.propagate(xt.clone(), is_classification);
+                for j in 1..=self.npl[self.l] {
+                    let y_hat = self.x[self.l][j];
+                    let y     = yt[j-1];
+                    if is_classification {
+                        let eps = 1e-8;
+                        let y_hat = y_hat.max(eps).min(1.0 - eps);
+                        test_loss_accum += -y * y_hat.ln() - (1.0 - y) * (1.0 - y_hat).ln();
+                    } else {
+                        test_loss_accum += 0.5 * (y_hat - y).powi(2);
+                    }
+                }
+            }
+            
+            // average over all test samples and outputs
+            let n_test = X_test.len();
+            let avg_test_loss = test_loss_accum / (n_test as f64 * num_outputs);
+            self.test_loss.push(avg_test_loss);
 
 
+
+        // Descente de gradient stochastique 
             for j in 1..=self.npl[self.l] {
                 let error = self.x[self.l][j] - sample_outputs[j-1];
                 if is_classification {
@@ -168,8 +206,6 @@ impl MLP {
             }
         }
     }
-
-    // fn train_classification(&mut self, all_inputs: Vec<Vec<f64>>, all_outputs: Vec<Vec<f64>>, epochs: usize, alpha: f64)
 
     fn predict(&mut self, inputs: Vec<f64>, is_classification: bool) -> Vec<f64> {
         self.propagate(inputs, is_classification);
