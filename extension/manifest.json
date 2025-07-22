@@ -1,46 +1,50 @@
 {
-    // Comments are accepted in the manifest, even though it is JSON.
-    "manifest_version": 3,
-    "name": "CineAI",
-    "description": "Find movie type on various streaming platforms",
-    "version": "0.0.1",
-    "icons": {
-        "16": "logo/logo-16.png",
-        "48": "logo/logo-48.png",
-        "128": "logo/logo-128.png"
-    },
-    "options_page": "settings/settings.html",
-    "action": {
-        "default_title": "CineAI",
-        "default_popup": "popup/popup.html"
-    },
-    "permissions": ["storage", "activeTab", "tabs"],
-    "host_permissions": [
-        "*://*/*"
-    ],
-    "background": {
-        "service_worker": "service-worker.js"
-    },
-    "content_scripts": [{
-        "js": ["foreground/allocine.js"],
-        "matches": ["https://www.allocine.fr/film/*"]
-    },
+  // Comments are accepted in the manifest, even though it is JSON.
+  "manifest_version": 3,
+  "name": "CineAI",
+  "description": "Find movie type on various streaming platforms",
+  "version": "0.0.1",
+  "icons": {
+    "16": "logo/logo-16.png",
+    "48": "logo/logo-48.png",
+    "128": "logo/logo-128.png"
+  },
+  "options_page": "settings/settings.html",
+  "action": {
+    "default_title": "CineAI",
+    "default_popup": "popup/popup.html"
+  },
+  "permissions": ["storage", "activeTab", "tabs"],
+  "host_permissions": ["*://*/*"],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "web_accessible_resources": [
     {
-        "js": ["foreground/programmetv.js"],
-        "matches": ["https://www.programme-tv.net/*"]
-    },
-    {
-        "js":["foreground/netflix.js"],
-        "matches": ["https://www.netflix.com/*"]
-    },
-    {
-        "js":["foreground/programmetv.js"],
-        "matches": ["https://www.programme-tv.net/*"]
-    },
-    {
-        "css": ["styles/foreground.css"],
-        "matches": ["<all_urls>"]
+      "resources": ["singlepage/index.html"],
+      "matches": ["<all_urls>"]
     }
-
-]
+  ],
+  "content_scripts": [
+    {
+      "js": ["foreground/allocine.js"],
+      "matches": ["https://www.allocine.fr/film/*"]
+    },
+    {
+      "js": ["foreground/programmetv.js"],
+      "matches": ["https://www.programme-tv.net/*"]
+    },
+    {
+      "js": ["foreground/netflix.js"],
+      "matches": ["https://www.netflix.com/*"]
+    },
+    {
+      "js": ["foreground/programmetv.js"],
+      "matches": ["https://www.programme-tv.net/*"]
+    },
+    {
+      "css": ["styles/foreground.css"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }
