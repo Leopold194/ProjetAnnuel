@@ -147,7 +147,7 @@ def get_weights_by_id(model_id):
 def get_weughts_by_model_name(model_name):
     conn = get_connection()
     if conn is None:
-        return None
+        return None, None
 
     cursor = conn.cursor()
     cursor.execute("SELECT weights,model_type FROM models WHERE name = %s", (model_name,))
@@ -156,7 +156,7 @@ def get_weughts_by_model_name(model_name):
     conn.close()
 
     if row is None:
-        return None
+        return None, None
 
     return row[0], row[1]  # Return the weights as bytes and model type
 
