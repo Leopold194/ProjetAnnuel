@@ -194,104 +194,105 @@ pub trait LinearModelAbstract {
         }
 
         self.set_weights(weights);
-
         self.set_num_classes(unique_classes.len());
-        let mut classes_weights = Vec::with_capacity(self.get_num_classes());
 
-        // One Vs All
+        // Préparer les labels binaires pour toutes les classes
+        let mut binary_labels: Vec<Vec<f64>> = Vec::new();
+        let mut binary_labels_test: Vec<Option<Vec<f64>>> = Vec::new();
 
-        for (idx, class_label) in unique_classes.iter().enumerate() {
-            let mut class_weights = Vec::with_capacity(self.weights()[0].len());
-
+        for class_label in unique_classes.iter() {
             let binary_y: Vec<f64> = labels_norm.iter().map(|v| if v == class_label { 1.0 } else { 0.0 }).collect();
-            let binary_y_test: Option<Vec<f64>> = labels_norm_test.as_ref().map(|test_labels| {test_labels.iter().map(|v| if v == class_label { 1.0 } else { 0.0 }).collect()});
+            binary_labels.push(binary_y);
 
-            if algo == "gradient-descent" {
-                for epoch in 0..epochs {
+            let binary_y_test: Option<Vec<f64>> = labels_norm_test.as_ref().map(|test_labels| {
+                test_labels.iter().map(|v| if v == class_label { 1.0 } else { 0.0 }).collect()
+            });
+            binary_labels_test.push(binary_y_test);
+        }
+
+        // CHANGEMENT PRINCIPAL : Boucle par époque, puis par classe
+        for epoch in 0..epochs {
+            let mut epoch_loss = 0.0;
+            let mut epoch_loss_test = 0.0;
+
+            // Entraîner chaque classe à cette époque
+            for (idx, class_label) in unique_classes.iter().enumerate() {
+                let binary_y = &binary_labels[idx];
+                let binary_y_test = &binary_labels_test[idx];
+
+                if algo == "gradient-descent" {
                     let a = self.model(py, self.get_x().clone(), idx);
                     let l = self.calc_log_loss(binary_y.clone(), a.clone());
-                    mean_losses[epoch] += l;
-
-                    let pred_train: Vec<f64> = a.iter().map(|&v| if v >= 0.5 { 1.0 } else { 0.0 }).collect();
-                    let acc = self.compute_accuracy(binary_y.clone(), pred_train.clone());
-                    accuracy[epoch] += acc;
-
-                    if let (Some(x_test_data), Some(binary_y_test_vec)) = (&x_test, &binary_y_test) {
-                        let pred_test = self.model(py, x_test_data.clone(), idx);
-                        let test_loss = self.calc_log_loss(binary_y_test_vec.clone(), pred_test.clone());
-                        mean_losses_test[epoch] += test_loss;
-
-                        let pred_test_classes: Vec<f64> = pred_test.iter().map(|&v| if v >= 0.5 { 1.0 } else { 0.0 }).collect();
-                        let acc_test = self.compute_accuracy(binary_y_test_vec.clone(), pred_test_classes.clone());
-                        accuracy_test[epoch] += acc_test;
-                    }
+                    epoch_loss += l;
 
                     let grad = self.calc_gradients(a.clone(), self.get_x().clone(), binary_y.clone());
-                    class_weights = self.update_weights(grad, learning_rate, idx);
+                    let class_weights = self.update_weights(grad, learning_rate, idx);
                     let mut all_weights = self.weights();
                     all_weights[idx] = class_weights.clone();
-                    self.set_weights(all_weights);                    
-                }
-            } else if algo == "rosenblatt" {
-                for epoch in 0..epochs {
+                    self.set_weights(all_weights);
+
+                    // Calculer la perte de test si disponible
+                    if let (Some(x_test_data), Some(binary_y_test_vec)) = (&x_test, binary_y_test) {
+                        let pred_test = self.model(py, x_test_data.clone(), idx);
+                        let test_loss = self.calc_log_loss(binary_y_test_vec.clone(), pred_test.clone());
+                        epoch_loss_test += test_loss;
+                    }
+                } else if algo == "rosenblatt" {
                     let i = if let Some(rng) = rng_opt.as_mut() {
                         rng.gen_range(0..self.get_x().len())
                     } else {
                         rand::thread_rng().gen_range(0..self.get_x().len())
                     };
-                    // let i = rng.random_range(0..self.get_x().len());
                     let random_x = self.get_x()[i].clone();
 
                     let prediction = self.model(py, vec![random_x.clone()], idx);
                     let error = binary_y[i] - prediction[0];
 
                     let l = self.calc_log_loss(binary_y.clone(), prediction.clone());
-                    mean_losses[epoch] += l;
-
-                    let pred_train: Vec<f64> = prediction.iter().map(|&v| if v >= 0.5 { 1.0 } else { 0.0 }).collect();
-                    let acc = self.compute_accuracy(binary_y.clone(), pred_train.clone());
-                    accuracy[epoch] += acc;
-
-                    if let (Some(x_test_data), Some(binary_y_test_vec)) = (&x_test, &binary_y_test) {
-                        let pred_test = self.model(py, x_test_data.clone(), idx);
-                        let test_loss = self.calc_log_loss(binary_y_test_vec.clone(), pred_test.clone());
-                        mean_losses_test[epoch] += test_loss;
-
-                        let pred_test_classes: Vec<f64> = pred_test.iter().map(|&v| if v >= 0.5 { 1.0 } else { 0.0 }).collect();
-                        let acc_test = self.compute_accuracy(binary_y_test_vec.clone(), pred_test_classes.clone());
-                        accuracy_test[epoch] += acc_test;
-                    }
+                    epoch_loss += l;
 
                     let mut w = self.weights()[idx].clone();
                     for j in 0..w.len() - 1 {
                         w[j] += learning_rate * error * random_x[j];
                     }
+
                     let last_index = w.len() - 1;
                     w[last_index] += learning_rate * error;
-                    class_weights = w;
+                    
                     let mut all_weights = self.weights();
-                    all_weights[idx] = class_weights.clone();
+                    all_weights[idx] = w;
                     self.set_weights(all_weights);
-                }
-            } else {
-                panic!("This algorithm is not supported.")
-            }
-            classes_weights.push(class_weights);
-        }
-        self.set_weights(classes_weights);
 
-        for epoch in 0..epochs {
-            if x_test.is_some() && y_test.is_some() {
-                mean_losses_test[epoch] /= self.get_num_classes() as f64;
-                accuracy_test[epoch] /= self.get_num_classes() as f64;
+                    // Calculer la perte de test si disponible
+                    if let (Some(x_test_data), Some(binary_y_test_vec)) = (&x_test, binary_y_test) {
+                        let pred_test = self.model(py, x_test_data.clone(), idx);
+                        let test_loss = self.calc_log_loss(binary_y_test_vec.clone(), pred_test.clone());
+                        epoch_loss_test += test_loss;
+                    }
+                } else {
+                    panic!("This algorithm is not supported.")
+                }
             }
-            accuracy[epoch] /= self.get_num_classes() as f64;
-            mean_losses[epoch] /= self.get_num_classes() as f64;
+
+            // Calculer l'accuracy multiclasse à cette époque
+            let train_predictions = self.predict_class(py, self.get_x().clone());
+            accuracy[epoch] = self.compute_accuracy(labels_norm.clone(), train_predictions);
+
+            // Calculer l'accuracy de test si disponible
+            if let (Some(x_test_data), Some(labels_norm_test_vec)) = (&x_test, &labels_norm_test) {
+                let test_predictions = self.predict_class(py, x_test_data.clone());
+                accuracy_test[epoch] = self.compute_accuracy(labels_norm_test_vec.clone(), test_predictions);
+            }
+
+            // Stocker les pertes moyennes
+            mean_losses[epoch] = epoch_loss / self.get_num_classes() as f64;
+            if x_test.is_some() {
+                mean_losses_test[epoch] = epoch_loss_test / self.get_num_classes() as f64;
+            }
         }
 
         self.set_train_loss(mean_losses);
         self.set_test_loss(mean_losses_test);
-
         self.set_train_accuracy(accuracy);
         self.set_test_accuracy(accuracy_test);
     }
@@ -346,6 +347,37 @@ pub trait LinearModelAbstract {
         utils::vecvecmul(&self.weights()[0], &x_bias).iter().sum()
     }
 
+    fn predict_class(&self, py: Python<'_>, x_data: Vec<Vec<f64>>) -> Vec<f64> {
+        let mut predictions = Vec::with_capacity(x_data.len());
+        
+        for sample in x_data.iter() {
+            // Utilise la même logique que votre fonction predict existante
+            let classes_weights = self.weights();
+            let num_classes = self.get_num_classes();
+
+            let predicted_class_idx = if num_classes > 1 {
+                let mut best_score = 0.0;
+                let mut predicted_class_idx: usize = 0;
+                
+                for i in 0..classes_weights.len() {
+                    let val = self.model(py, vec![sample.clone()], i)[0];
+                    if val > best_score {
+                        best_score = val;
+                        predicted_class_idx = i;
+                    }
+                }
+                predicted_class_idx
+            } else {
+                let prediction = self.predict_binary_classification(py, sample.clone());
+                if prediction > 0.0 { 1 } else { 0 }
+            };
+            
+            predictions.push(predicted_class_idx as f64);
+        }
+        
+        predictions
+    }
+
     fn predict(&self, py: Python<'_>, x: Vec<f64>) -> PyResult<PyObject> {
         match self.get_model_type() {
             "regression" => Ok(PyFloat::new(py, self.predict_regression(x)).into()),
@@ -358,8 +390,11 @@ pub trait LinearModelAbstract {
                     let mut predicted_class_idx: usize = 0;
                     let mut val: f64;
 
+                    // utils::py_print(py, &format!("map : {:?}", self.get_label_map_str()));
+                    
                     for i in 0..classes_weights.len() {
                         val = self.model(py, vec![x.clone()], i)[0];
+                        // utils::py_print(py, &format!("val : {:?}", val));
                         if val > best_score {
                             best_score = val;
                             predicted_class_idx = i;
