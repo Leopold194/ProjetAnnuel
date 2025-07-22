@@ -25,9 +25,24 @@ def uncompress(data: bytes) -> str:
 app = Flask(__name__)
 CORS(app)
 
+def get_model_class(class_name: str):
+    class_name = class_name.upper()
+    if class_name == "RBF":
+        return projetannuel.RBF
+    elif class_name == "MLP":
+        return projetannuel.MLP
+    elif class_name == "LINEARMODEL":
+        return projetannuel.LinearModel
+    elif class_name == "SVM":
+        return projetannuel.SVM
+    elif class_name == "SVMOVO" :
+        return projetannuel.SVMOvO
+    elif class_name == "SVMOVR" :
+        return projetannuel.SVMOvR
+
 
 def image_to_tensor(image):
-    image = image.resize((20, 20))
+    image = image.resize((15, 10))
     image_array = np.array(image, dtype=np.float32)
     image_array /= 255.0
     image_array = np.transpose(image_array, (2, 0, 1))
@@ -36,17 +51,22 @@ def image_to_tensor(image):
 
 
 class ModelWrapper:
-    def __init__(self, model):
+    def __init__(self, model,name):
         self.model = model
         self.uses = 0
         self.createdon = time.time()
+        self.name = name
     
     @classmethod
     def from_name(cls, name):
-        weights = db.get_weughts_by_model_name(name)
+        weights, classname = db.get_weughts_by_model_name(model_name=name)
         if weights is None:
             raise ValueError(f"Model with name {name} not found")
-        return cls(projetannuel.LinearModel.load_string(uncompress(weights)))
+        
+        return cls(
+            get_model_class(classname).load_string(uncompress(weights)),
+            name
+        )
 
 class ModelCollection :
     def __init__(self) :
@@ -61,16 +81,17 @@ class ModelCollection :
             self.models = self.models[:max_models]
 
     def __contains__(self, model):
-        return any(m.model == model for m in self.models)
+        return any(m.name == model for m in self.models)
     
     def predict(self, image, model):
         self.clean()
 
         if not model in self :
             self.load(ModelWrapper.from_name(model))
+
         
         for m in self.models:
-            if m.model == model:
+            if m.name == model:
                 m.uses += 1
                 return m.model.predict(image)
         raise ValueError("Model not found in collection")
@@ -95,7 +116,7 @@ def predict():
     prediction = COLLECTION.predict(image, model)
     return jsonify({'prediction': prediction})
 
-@app.route("/api/upload", methods=["POST"])
+@app.route("/api/model/upload", methods=["POST"])
 def upload_file():    
     file = request.files.get("file")
     if file is None:
@@ -103,16 +124,56 @@ def upload_file():
 
     filename = file.filename
     name = request.form.get("name", filename)
+    model_type = request.form.get("model_type")
+    if model_type is None:
+        return jsonify({"error": "Missing model type"}), 400
     content = file.read()
     if filename is None or content is None:
         return jsonify({"error": "Missing file data"}), 400
 
     db.upload_model(
         name=name,
-        weights=compress(content.decode('utf-8') if isinstance(content, bytes) else content)
+        weights=compress(content.decode('utf-8') if isinstance(content, bytes) else content),
+        model_type=model_type
     )
 
     return jsonify({"message": "File uploaded successfully"}), 201
+
+@app.route("/api/images/upload", methods=["POST"])
+def upload_image():
+    file = request.files.get("file")
+    if file is None:
+        return jsonify({"error": "Missing file"}), 400
+
+    filename = file.filename
+    content = file.read()
+    if filename is None or content is None:
+        return jsonify({"error": "Missing file data"}), 400
+    
+    try :
+        blob = io.BytesIO()
+        image = Image.open(io.BytesIO(content))
+        image = image.convert('RGB')
+        image.thumbnail((100, 100), Image.Resampling.LANCZOS)
+        image.save(blob, format='PNG')
+        blob.seek(0)
+        file_uuid = db.upload_file(blob.getvalue())
+    except Exception as e:
+        print(f"Error processing image: {e}")
+        return jsonify({"error": f"Failed to process image"}), 500
+
+
+    return jsonify({"message": "File uploaded successfully", "uuid": file_uuid}), 201
+
+@app.route("/api/document/retrieve/<uuid>", methods=["GET"])
+def retrieve_document(uuid):
+    content = db.retrieve_file(uuid)
+    if content is None:
+        return jsonify({"error": "File not found"}), 404
+
+    return content, 200, {
+                'Content-Type': 'image/png'
+    }
     
 @app.route("/api/models/list", methods=["GET"])
 def list_models():
