@@ -2,7 +2,7 @@ import requests
 import ijson
 import argparse
 
-def upload(file_path, name, model_type, url="http://localhost:5000/api/upload"):
+def upload(file_path, name, model_type, url="https://cineaiwn3fwc3j-cineai-api.functions.fnc.fr-par.scw.cloud/api/model/upload"):
     """
     Upload a file to the Flask API.
     Returns a tuple (status_code, response_data).
@@ -28,7 +28,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Upload a file to the Flask API.")
     parser.add_argument("file_path", help="Path to the file to be uploaded")
     parser.add_argument("--name", help="Name associated with the file", default=None)
-    parser.add_argument("--url", help="API endpoint URL", default="localhost:5000")
+    parser.add_argument("--url", help="API endpoint URL", default="cineaiwn3fwc3j-cineai-api.functions.fnc.fr-par.scw.cloud")
     args = parser.parse_args()
 
     url = f"http://{args.url}/api/model/upload"

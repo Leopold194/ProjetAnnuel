@@ -1,4 +1,4 @@
-const ENDPOINT = "http://127.0.0.1:5000"
+const ENDPOINT = "https://cineaiwn3fwc3j-cineai-api.functions.fnc.fr-par.scw.cloud";
 
 
 function list_model() {

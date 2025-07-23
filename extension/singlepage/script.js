@@ -1,4 +1,4 @@
-const ENDPOINT = "http://localhost:5000";
+const ENDPOINT = "https://cineaiwn3fwc3j-cineai-api.functions.fnc.fr-par.scw.cloud";
 
 const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");

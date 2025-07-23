@@ -9,11 +9,11 @@ if os.environ.get("ENVIRONMENT") != "prod" :
     dotenv.load_dotenv(os.path.join(os.path.dirname(__file__), 'prod.env'))
 
 conn_params = {
-    "host": os.environ.get("HOST"),
-    "port": os.environ.get("PORT"),
+    "host": os.environ.get("DB_HOST"),
+    "port": os.environ.get("DB_PORT"),
     "user": os.environ.get("DB_USER", "root"),
-    "password": os.environ.get("PASSWORD"),
-    "database": os.environ.get("DATABASE", "cineai"),
+    "password": os.environ.get("DB_PASSWORD"),
+    "database": os.environ.get("DB_DATABASE", "cineai"),
 }
 
 def mariadb_get_connection():
