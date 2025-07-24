@@ -1,0 +1,9 @@
+timestamp,model,categories,size,train_accuracy,test_accuracy,C,gamma,algo,epochs,learning_rate,train_duration_seconds
+2025-07-23T16:47:56.579015,rbf,Horreur|Animation,15x10,0.75,0.735,500,0.1,rosenblatt,1000,0.05,8.86
+2025-07-23T16:49:36.954578,rbf,Horreur|Animation,15x10,0.7925,0.8,500,0.1,rosenblatt,5000,0.05,41.53
+2025-07-23T16:50:50.451473,rbf,Horreur|Animation,15x10,0.7525,0.74,500,0.1,gradient-descent,1000,0.05,14.25
+2025-07-23T16:53:39.983485,rbf,Horreur|Animation,15x10,0.7987,0.795,500,0.1,gradient-descent,5000,0.05,105.02
+2025-07-23T16:56:21.182021,rbf,Horreur|Animation|Action,15x10,0.5371,0.5712,500,0.1,rosenblatt,1000,0.05,28.76
+2025-07-23T17:01:12.385934,rbf,Horreur|Animation|Action,15x10,0.5807,0.6169,500,0.1,rosenblatt,5000,0.05,157.69
+2025-07-23T17:03:20.143166,rbf,Horreur|Animation|Action,15x10,0.5508,0.5888,500,0.1,gradient-descent,1000,0.05,35.47
+2025-07-23T17:08:17.208720,rbf,Horreur|Animation|Action,15x10,0.5877,0.6186,500,0.1,gradient-descent,5000,0.05,206.81

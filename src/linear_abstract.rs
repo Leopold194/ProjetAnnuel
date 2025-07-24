@@ -123,7 +123,6 @@ pub trait LinearModelAbstract {
         let y_labels = self.get_y().clone();
         let labels_norm: Vec<_> = match &y_labels {
             labels::LabelsEnum::Str(labels) => {
-                // Créer mapping: label string → index
                 let mut uniq = labels.clone();
                 uniq.sort();
                 uniq.dedup();
@@ -133,7 +132,6 @@ pub trait LinearModelAbstract {
                     .map(|(i, label)| (label.clone(), i))
                     .collect();
 
-                // Stocker l'inverse: index → label
                 self.set_label_map_str(Some(map.clone()));
 
                 labels.iter().map(|l| map[l] as f64).collect()
@@ -196,7 +194,6 @@ pub trait LinearModelAbstract {
         self.set_weights(weights);
         self.set_num_classes(unique_classes.len());
 
-        // Préparer les labels binaires pour toutes les classes
         let mut binary_labels: Vec<Vec<f64>> = Vec::new();
         let mut binary_labels_test: Vec<Option<Vec<f64>>> = Vec::new();
 
@@ -210,12 +207,10 @@ pub trait LinearModelAbstract {
             binary_labels_test.push(binary_y_test);
         }
 
-        // CHANGEMENT PRINCIPAL : Boucle par époque, puis par classe
         for epoch in 0..epochs {
             let mut epoch_loss = 0.0;
             let mut epoch_loss_test = 0.0;
 
-            // Entraîner chaque classe à cette époque
             for (idx, class_label) in unique_classes.iter().enumerate() {
                 let binary_y = &binary_labels[idx];
                 let binary_y_test = &binary_labels_test[idx];
@@ -231,7 +226,6 @@ pub trait LinearModelAbstract {
                     all_weights[idx] = class_weights.clone();
                     self.set_weights(all_weights);
 
-                    // Calculer la perte de test si disponible
                     if let (Some(x_test_data), Some(binary_y_test_vec)) = (&x_test, binary_y_test) {
                         let pred_test = self.model(py, x_test_data.clone(), idx);
                         let test_loss = self.calc_log_loss(binary_y_test_vec.clone(), pred_test.clone());
@@ -263,7 +257,6 @@ pub trait LinearModelAbstract {
                     all_weights[idx] = w;
                     self.set_weights(all_weights);
 
-                    // Calculer la perte de test si disponible
                     if let (Some(x_test_data), Some(binary_y_test_vec)) = (&x_test, binary_y_test) {
                         let pred_test = self.model(py, x_test_data.clone(), idx);
                         let test_loss = self.calc_log_loss(binary_y_test_vec.clone(), pred_test.clone());
@@ -274,17 +267,14 @@ pub trait LinearModelAbstract {
                 }
             }
 
-            // Calculer l'accuracy multiclasse à cette époque
             let train_predictions = self.predict_class(py, self.get_x().clone());
             accuracy[epoch] = self.compute_accuracy(labels_norm.clone(), train_predictions);
 
-            // Calculer l'accuracy de test si disponible
             if let (Some(x_test_data), Some(labels_norm_test_vec)) = (&x_test, &labels_norm_test) {
                 let test_predictions = self.predict_class(py, x_test_data.clone());
                 accuracy_test[epoch] = self.compute_accuracy(labels_norm_test_vec.clone(), test_predictions);
             }
 
-            // Stocker les pertes moyennes
             mean_losses[epoch] = epoch_loss / self.get_num_classes() as f64;
             if x_test.is_some() {
                 mean_losses_test[epoch] = epoch_loss_test / self.get_num_classes() as f64;
