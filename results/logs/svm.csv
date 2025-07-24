@@ -35,6 +35,3 @@ timestamp,model_type,categories,image_size,train_accuracy,test_accuracy,Soft_Mar
 2025-07-21T14:40:53.782654,OneVsOne,"['Horreur', 'Animation', 'Action']",10x15,0.7811,0.7342,1,0.005
 2025-07-21T14:42:10.102740,OneVsRest,"['Horreur', 'Animation', 'Action']",10x15,0.7786,0.7139,1,0.05
 2025-07-21T14:42:42.949191,OneVsOne,"['Horreur', 'Animation', 'Action']",10x15,0.7786,0.7139,1,0.05
-2025-07-21T14:42:43.946754,OneVsRest,"['Horreur', 'Animation']",20x20,1.0,1.0,0.1,0.01
-2025-07-22T00:03:42.217691,OneVsRest,"['Horreur', 'Animation', 'Action']",20x20,0.5156,0.4776,0.1,0.01
-2025-07-22T00:14:11.438384,OneVsRest,"['Horreur', 'Animation', 'Action']",20x20,0.4421,0.4163,0.1,0.005

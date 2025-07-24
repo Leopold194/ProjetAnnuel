@@ -1,0 +1,7 @@
+## %%
+
+import projetannuel
+
+dir(projetannuel)
+
+## %%

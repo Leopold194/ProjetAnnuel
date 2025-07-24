@@ -9,9 +9,9 @@ use serde::{Serialize, Deserialize};
 #[derive(Serialize, Deserialize)]
 pub struct MLP {
     model_type: String,
-    npl: Vec<usize>, // neurons per layer
+    npl: Vec<usize>,
     weights: Vec<Vec<Vec<f64>>>,  
-    l: usize, //layers    
+    l: usize,
     x:Vec<Vec<f64>>,
     deltas:Vec<Vec<f64>>,
     #[pyo3(get)]
@@ -110,99 +110,94 @@ impl MLP {
         self.test_loss.clone()
     }
 
-    fn train(&mut self, X_train: Vec<Vec<f64>>, y_train: Vec<Vec<f64>>, epochs: usize, alpha: f64, X_test:Vec<Vec<f64>>, y_test:Vec<Vec<f64>>,  is_classification: bool, seed:usize) {
-        for _ in 0..epochs {
-            self.test_loss = Vec::new();
-            self.train_loss = Vec::new();
-            let mut rng = StdRng::seed_from_u64(seed as u64);
-            let k = rng.random_range(0..X_train.len());
-            let sample_inputs = X_train[k].clone();
-            let sample_outputs = y_train[k].clone();
-            
-            self.propagate(sample_inputs, is_classification);
+     pub fn train(
+        &mut self,
+        X_train: Vec<Vec<f64>>,
+        y_train: Vec<Vec<f64>>,
+        X_test: Vec<Vec<f64>>,
+        y_test: Vec<Vec<f64>>,
+        iterations: usize,
+        alpha: f64,
+        is_classification: bool,
+        seed: u64,
+    ) {
+        self.train_loss.clear();
+        self.test_loss.clear();
+        let mut rng = StdRng::seed_from_u64(seed);
+        let L = self.npl.len() - 1;
+        let num_outputs = self.npl[L] as f64;
 
-
-            let mut loss = 0.0;
-
-            for j in 1..=self.npl[self.l] {
-                let y_hat = self.x[self.l][j];
-                let y = sample_outputs[j - 1];
-    
-                if is_classification {
-                    let eps = 1e-8;
-                    let y_hat_clipped = y_hat.max(eps).min(1.0 - eps);
-                    loss += -y * y_hat_clipped.ln() - (1.0 - y) * (1.0 - y_hat_clipped).ln();
-
-                } else {
-                    loss += 0.5 * (y_hat - y).powi(2);
-
-                }
-            }
-
-            let num_outputs:f64 = self.npl[self.l] as f64;
-            self.train_loss.push(loss/num_outputs);
-
-            
-            // if epoch % 100 == 0 {
-
-            //     let msg = if is_classification {
-            //         format!("Epoch {} – BCE: {:.6}", epoch, loss)
-            //     } else {
-            //         format!("Epoch {} – MSE: {:.6}", epoch, loss)
-            //     };
-        
-
-            //     Python::with_gil(|py| {
-            //         py_print(py, &msg).expect("failed to print to Python stdout");
-            //     });
-            // }
-            let mut test_loss_accum = 0.0;
-            for (xt, yt) in X_test.iter().zip(y_test.iter()) {
-                self.propagate(xt.clone(), is_classification);
-                for j in 1..=self.npl[self.l] {
-                    let y_hat = self.x[self.l][j];
-                    let y     = yt[j-1];
+        for _ in 0..iterations {
+            let mut total_train = 0.0;
+            for (xt, yt) in X_train.iter().zip(y_train.iter()) {
+                self.propagate(xt.to_vec(), is_classification);
+                for j in 1..=self.npl[L] {
+                    let y_hat = self.x[L][j];
+                    let y = yt[j - 1];
                     if is_classification {
                         let eps = 1e-8;
-                        let y_hat = y_hat.max(eps).min(1.0 - eps);
-                        test_loss_accum += -y * y_hat.ln() - (1.0 - y) * (1.0 - y_hat).ln();
+                        let y_hat_clamped = y_hat.max(eps).min(1.0 - eps);
+                        total_train += -y * y_hat_clamped.ln() - (1.0 - y) * (1.0 - y_hat_clamped).ln();
                     } else {
-                        test_loss_accum += 0.5 * (y_hat - y).powi(2);
+                        total_train += 0.5 * (y_hat - y).powi(2);
                     }
                 }
             }
-            
-            // average over all test samples and outputs
-            let n_test = X_test.len();
-            let avg_test_loss = test_loss_accum / (n_test as f64 * num_outputs);
-            self.test_loss.push(avg_test_loss);
+            self.train_loss.push(total_train / (X_train.len() as f64 * num_outputs));
 
+            let mut total_test = 0.0;
+            for (xt, yt) in X_test.iter().zip(y_test.iter()) {
+                self.propagate(xt.to_vec(), is_classification);
+                for j in 1..=self.npl[L] {
+                    let y_hat = self.x[L][j];
+                    let y = yt[j - 1];
+                    if is_classification {
+                        let eps = 1e-8;
+                        let y_hat_clamped = y_hat.max(eps).min(1.0 - eps);
+                        total_test += -y * y_hat_clamped.ln() - (1.0 - y) * (1.0 - y_hat_clamped).ln();
+                    } else {
+                        total_test += 0.5 * (y_hat - y).powi(2);
+                    }
+                }
+            }
+            self.test_loss.push(total_test / (X_test.len() as f64 * num_outputs));
 
+            let idx = rng.gen_range(0..X_train.len());
+            let inputs = &X_train[idx];
+            let targets = &y_train[idx];
+            self.propagate(inputs.to_vec(), is_classification);
 
-        // Descente de gradient stochastique 
-            for j in 1..=self.npl[self.l] {
-                let error = self.x[self.l][j] - sample_outputs[j-1];
-                if is_classification {
-                    self.deltas[self.l][j] = error * (1.0 - self.x[self.l][j].powi(2));
+            let idx = rng.gen_range(0..X_train.len());
+            let inputs = &X_train[idx];
+            let targets = &y_train[idx];
+
+            self.propagate(inputs.to_vec(), is_classification);
+
+            for j in 1..=self.npl[L] {
+                let y_hat = self.x[L][j];
+                let error = y_hat - targets[j - 1];
+                self.deltas[L][j] = if is_classification {
+                    error * (1.0 - y_hat.powi(2))
                 } else {
-                    self.deltas[self.l][j] = error;
-                }
+                    error
+                };
             }
 
-            for i in (1..self.l).rev() {
-                for j in 1..=self.npl[i] {
+            for l in (1..L).rev() {
+                for i in 1..=self.npl[l] {
                     let mut sum = 0.0;
-                    for k in 1..=self.npl[i+1] {
-                        sum += self.weights[i+1][j][k] * self.deltas[i+1][k];
+                    for k in 1..=self.npl[l + 1] {
+                        sum += self.weights[l + 1][i][k] * self.deltas[l + 1][k];
                     }
-                    self.deltas[i][j] = sum * (1.0 - self.x[i][j].powi(2));
+                    let x_i = self.x[l][i];
+                    self.deltas[l][i] = sum * (1.0 - x_i.powi(2));
                 }
             }
 
-            for i in 1..=self.l {
-                for j in 0..=self.npl[i-1] {
-                    for k in 1..=self.npl[i] {
-                        self.weights[i][j][k] -= alpha * self.x[i-1][j] * self.deltas[i][k];
+            for l in 1..=L {
+                for i in 0..=self.npl[l - 1] {
+                    for j in 1..=self.npl[l] {
+                        self.weights[l][i][j] -= alpha * self.x[l - 1][i] * self.deltas[l][j];
                     }
                 }
             }

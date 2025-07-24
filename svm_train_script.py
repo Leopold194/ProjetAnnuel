@@ -17,7 +17,7 @@ le = LabelEncoder()
 ### Paramètres globaux 
 param_grid = {
     'categories' : [["Horreur","Animation","Action"]],
-    'sizes' : [(20,20)], #(10,15),
+    'sizes' : [(15,10)],
     'C': [0.1,0.5,1],
     'gamma': [1e-2, 5e-3, 5e-2],
     "type": ["OneVsRest"]#,"OneVsOne"]
