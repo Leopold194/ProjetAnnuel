@@ -221,4 +221,10 @@ impl MLP {
         let model: MLP = serde_json::from_reader(file).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
         Ok(model)
     }
+
+    #[staticmethod]
+    pub fn load_string(json_string: &str) -> PyResult<Self> {
+        let model: MLP = serde_json::from_str(json_string).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(model)
+    }
 }

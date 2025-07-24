@@ -88,6 +88,18 @@ impl LinearModel {
         Ok(model)
     }
 
+        
+    #[staticmethod]
+    pub fn load_string(json_string: &str) -> PyResult<Self> {
+        let model: LinearModel = serde_json::from_str(json_string).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(model)
+    }
+
+    pub fn save_string(&self) -> PyResult<String> {
+        let json_string = serde_json::to_string_pretty(&self).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(json_string)
+    }
+
     // pub fn predict_proba(&self, py: Python<'_>, x: Vec<f64>) -> PyResult<PyObject> {
     //     <Self as LinearModelAbstract>::predict_proba(self, py, x)
     // }

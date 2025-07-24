@@ -1,0 +1,5 @@
+timestamp,model,categories,size,train_accuracy,test_accuracy,C,gamma,algo,epochs,learning_rate,train_duration_seconds
+2025-07-23T17:59:09.826799,rbf,Horreur|Animation,15x10,0.7525,0.73,500,0.1,rosenblatt,1000,0.05,9.75
+2025-07-23T18:00:24.413251,rbf,Horreur|Animation,15x10,0.7512,0.735,500,0.1,gradient-descent,1000,0.05,14.98
+2025-07-23T18:13:14.601437,rbf,Action|Aventure|Animation|Comédie|Crime|Documentaire|Drame|Familial|Fantastique|Histoire,15x10,0.1822,0.1669,500,0.1,rosenblatt,1000,0.05,261.39
+2025-07-23T18:26:05.105473,rbf,Action|Aventure|Animation|Comédie|Crime|Documentaire|Drame|Familial|Fantastique|Histoire,15x10,0.214,0.1956,500,0.1,gradient-descent,1000,0.05,397.67

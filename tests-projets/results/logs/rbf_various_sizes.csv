@@ -1,0 +1,5 @@
+timestamp,model,categories,size,train_accuracy,test_accuracy,C,gamma,algo,epochs,learning_rate,train_duration_seconds
+2025-07-23T20:58:41.624831,rbf,Horreur|Animation,15x10,0.7375,0.76,500,0.1,gradient-descent,1000,0.05,28.65
+2025-07-23T21:01:22.484106,rbf,Horreur|Animation,10x10,0.7844,0.76,500,0.1,gradient-descent,1000,0.05,56.34
+2025-07-23T21:04:13.851935,rbf,Horreur|Animation,20x15,0.6719,0.7325,500,0.1,gradient-descent,1000,0.05,35.04
+2025-07-23T21:05:24.307659,rbf,Horreur|Animation,10x5,0.7756,0.7425,500,0.1,gradient-descent,1000,0.05,39.46

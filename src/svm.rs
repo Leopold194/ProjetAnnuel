@@ -299,6 +299,13 @@ impl SVM {
         Ok(model)
     }
 
+    #[staticmethod]
+    pub fn load_string(json_string: &str) -> PyResult<Self> {
+        let model: SVM = serde_json::from_str(json_string)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(model)
+    }
+
     fn get_c(&self) -> Option<f64> {
         match self.margin {
             SoftMargin::Soft(c) => Some(c),
@@ -389,6 +396,13 @@ impl SVMOvR {
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
         Ok(model)
     }
+
+    #[staticmethod]
+    pub fn load_string(json_string: &str) -> PyResult<Self> {
+        let model: SVMOvR = serde_json::from_str(json_string)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(model)
+    }
 }
 
 #[pymethods]
@@ -470,6 +484,13 @@ impl SVMOvO {
         let file = std::fs::File::open(path)
             .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
         let model: SVMOvO = serde_json::from_reader(file)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(model)
+    }
+
+    #[staticmethod]
+    pub fn load_string(json_string: &str) -> PyResult<Self> {
+        let model: SVMOvO = serde_json::from_str(json_string)
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
         Ok(model)
     }
