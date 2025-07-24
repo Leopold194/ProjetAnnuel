@@ -1,7 +1,0 @@
-## %%
-
-import projetannuel
-
-dir(projetannuel)
-
-## %%
