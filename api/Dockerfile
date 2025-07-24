@@ -39,6 +39,17 @@ RUN pip install numpy --break-system-packages
 
 RUN pip install mysql-connector-python --break-system-packages
 
+RUN pip install gunicorn --break-system-packages
+
 ENV ENVIRONMENT=prod
 
+EXPOSE 5000
+
+# Without gunicorn
 CMD ["python3", "api.py"]
+
+# With gunicorn
+#CMD ["sh", "-c", "\
+#  WORKERS=$(( $(nproc) * 2 + 1 )) && \
+#  exec gunicorn -w $WORKERS -b 0.0.0.0:5000 api:app\
+#"]
