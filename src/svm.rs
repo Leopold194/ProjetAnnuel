@@ -194,8 +194,8 @@ impl SVM {
         // Résolution
         let settings = Settings::default()
             .polish(true)
-            .eps_abs(1e-6)
-            .eps_rel(1e-6)
+            .eps_abs(1e-5)
+            .eps_rel(1e-5)
             .max_iter(200_000);
             
         let mut prob = Problem::new(&q_matrix, &q_vec, &a, &l, &u, &settings)

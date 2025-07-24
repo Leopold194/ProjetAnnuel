@@ -127,25 +127,25 @@ for size, categories, c, gamma, algo, epochs, learning_rate in itertools.product
     last_size = size
     last_categories = categories    
 
-    y = pa.string_labels(genres_train)
-    model = pa.RBF(
-        imgs_as_lists_train,
-        y,
-        gamma=gamma,
-        k=c,
-        seed=42
+    X_train = np.array(imgs_as_lists_train)
+    X_test = np.array(imgs_as_lists_test)
+    y_train = pa.string_labels(genres_train)
+    y_test = pa.string_labels(genres_test)
+
+    input_dim = X_train.shape[1]
+    output_dim = len(set(y_train))
+
+    model = pa.MLP([input_dim, 64, output_dim], seed=42)
+    model.train_classification(
+        X_train,
+        y_train,
+        epochs=1000,
+        learning_rate=0.01,
+        algo="gradient-descent",
+        x_test=X_test,
+        y_test=y_test,
     )
 
-    # Mesure du temps d'entrainement
-    start_time = time.time()
-    model.train_classification(
-        epochs=epochs,
-        learning_rate=learning_rate,
-        algo=algo,
-        x_test=imgs_as_lists_test,
-        y_test=pa.string_labels(genres_test)
-    )
-    train_duration = time.time() - start_time
 
     Y_pred_train = [model.predict(x) for x in imgs_as_lists_train]
     acc_train = pa.accuracy_score(genres_train, Y_pred_train)
