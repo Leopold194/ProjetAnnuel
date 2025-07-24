@@ -11,6 +11,7 @@ import db
 import lzma
 import time
 from typing import List
+import ijson
 
 db.init_tables()
 
@@ -21,6 +22,13 @@ def compress(text: str) -> bytes:
 def uncompress(data: bytes) -> str:
     """Uncompress LZMA compressed data."""
     return lzma.decompress(data).decode('utf-8')
+
+def get_model_name(json_string):
+    f = io.StringIO(json_string)
+    parser = ijson.parse(f)
+    for prefix, event, value in parser:
+        if prefix == 'model_name' and event == 'string':
+            return value
 
 app = Flask(__name__)
 CORS(app)
@@ -125,19 +133,29 @@ def upload_file():
     filename = file.filename
     name = request.form.get("name", filename)
     model_type = request.form.get("model_type")
-    if model_type is None:
-        return jsonify({"error": "Missing model type"}), 400
+
     content = file.read()
     if filename is None or content is None:
         return jsonify({"error": "Missing file data"}), 400
 
+    content_decoded = content.decode('utf-8') if isinstance(content, bytes) else content
+
+    if model_type == "auto" :
+        model_type = get_model_name(content_decoded)
+
+    if model_type is None:
+        return jsonify({"error": "Missing model type"}), 400
+
+
     db.upload_model(
         name=name,
-        weights=compress(content.decode('utf-8') if isinstance(content, bytes) else content),
+        weights=compress(content_decoded),
         model_type=model_type
     )
 
-    return jsonify({"message": "File uploaded successfully"}), 201
+    return jsonify({"message": "File uploaded successfully"
+        , "model_type": model_type, "name": name
+    }), 201
 
 @app.route("/api/images/upload", methods=["POST"])
 def upload_image():
