@@ -2,6 +2,8 @@
 <html>
   <head><title>CineAI Predction</title></head>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="libs/nprogress.min.css"/>
+    <script src="libs/nprogress.min.js"></script>
   <body>
     <h1>Prediction</h1>
     <div id="dropzone">
@@ -10,6 +12,11 @@
       </div>
     <div id="result-container">
         <p id="result">NULL</p>
+    </div>
+    <div class="hidden" id="upload-button-container">
+      <div class="hidden upload-button-container" >
+        <button id="upload-model-button" class="">Upload custom model</button>
+      </div>
     </div>
   </body>
   <script src="script.js"></script>
