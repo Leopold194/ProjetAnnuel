@@ -8,6 +8,7 @@ use serde::{Serialize, Deserialize};
 #[pyclass]
 #[derive(Serialize, Deserialize)]
 pub struct MLP {
+    model_type: String,
     npl: Vec<usize>, // neurons per layer
     weights: Vec<Vec<Vec<f64>>>,  
     l: usize, //layers    
@@ -67,6 +68,7 @@ impl MLP {
         }
 
         MLP { 
+            model_type:String::from("MLP"),
             npl, 
             weights, 
             l, 
@@ -222,6 +224,12 @@ impl MLP {
     pub fn load(path: &str) -> PyResult<Self> {
         let file = std::fs::File::open(path).map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
         let model: MLP = serde_json::from_reader(file).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(model)
+    }
+
+    #[staticmethod]
+    pub fn load_string(json_string: &str) -> PyResult<Self> {
+        let model: MLP = serde_json::from_str(json_string).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
         Ok(model)
     }
 }

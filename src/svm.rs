@@ -26,6 +26,7 @@ pub enum SoftMargin {
 #[pyclass]
 #[derive(Serialize, Deserialize)]
 pub struct SVM {
+    model_name:String,
     #[pyo3(get)]
     pub alpha: Vec<f64>,
     #[pyo3(get)]
@@ -44,6 +45,7 @@ pub struct SVM {
 #[pyclass]
 #[derive(Serialize, Deserialize)]
 pub struct SVMOvR {
+    model_name:String,
     classifiers: Vec<SVM>,
     classes: Vec<i32>,  // Utiliser i32 au lieu de f64 pour les classes
     kernel: SVMKernelType,   
@@ -54,6 +56,7 @@ pub struct SVMOvR {
 #[pyclass]
 #[derive(Serialize, Deserialize)]
 pub struct SVMOvO {
+    model_name:String,
     classifiers: Vec<((i32, i32), SVM)>,
     classes: Vec<i32>,
     kernel: SVMKernelType,   
@@ -123,6 +126,7 @@ impl SVM {
     #[new]
     pub fn new(kernel: SVMKernelType, margin: Option<SoftMargin>) -> Self {
         SVM {
+            model_name : String::from("SVM"),
             alpha: vec![],
             support_vectors: vec![],
             support_labels: vec![],
@@ -295,6 +299,13 @@ impl SVM {
         Ok(model)
     }
 
+    #[staticmethod]
+    pub fn load_string(json_string: &str) -> PyResult<Self> {
+        let model: SVM = serde_json::from_str(json_string)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(model)
+    }
+
     fn get_c(&self) -> Option<f64> {
         match self.margin {
             SoftMargin::Soft(c) => Some(c),
@@ -316,6 +327,7 @@ impl SVMOvR {
     #[new]
     pub fn new(kernel: SVMKernelType, margin: Option<SoftMargin>) -> Self {
         SVMOvR {
+            model_name:String::from("SVMOvR"),
             classifiers: Vec::new(),
             classes: Vec::new(),
             kernel,
@@ -384,6 +396,13 @@ impl SVMOvR {
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
         Ok(model)
     }
+
+    #[staticmethod]
+    pub fn load_string(json_string: &str) -> PyResult<Self> {
+        let model: SVMOvR = serde_json::from_str(json_string)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(model)
+    }
 }
 
 #[pymethods]
@@ -391,6 +410,7 @@ impl SVMOvO {
     #[new]
     pub fn new(kernel: SVMKernelType, margin: Option<SoftMargin>) -> Self {
         SVMOvO {
+            model_name: String::from("SVMOvO"),
             classifiers: Vec::new(),
             classes: Vec::new(),
             kernel,
@@ -464,6 +484,13 @@ impl SVMOvO {
         let file = std::fs::File::open(path)
             .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
         let model: SVMOvO = serde_json::from_reader(file)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(model)
+    }
+
+    #[staticmethod]
+    pub fn load_string(json_string: &str) -> PyResult<Self> {
+        let model: SVMOvO = serde_json::from_str(json_string)
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
         Ok(model)
     }

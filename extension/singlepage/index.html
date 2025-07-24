@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+  <head><title>CineAI Predction</title></head>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="libs/nprogress.min.css"/>
+    <script src="libs/nprogress.min.js"></script>
+  <body>
+    <h1>Prediction</h1>
+    <div id="dropzone">
+        <p>Glisse une image ici ou clique pour en sélectionner une</p>
+        <input type="file" id="fileInput" accept=".avif,.blp,.bmp,.dds,.dib,.eps,.gif,.icns,.ico,.im,.jpeg,.jpg,.jp2,.mpo,.msp,.pcx,.pfm,.png,.ppm,.qoi,.sgi,.spi,.tga,.tiff,.webp,.xbm" hidden>
+      </div>
+    <div id="result-container">
+        <p id="result">NULL</p>
+    </div>
+    <div class="hidden" id="upload-button-container">
+      <div class="hidden upload-button-container" >
+        <button id="upload-model-button" class="">Upload custom model</button>
+      </div>
+    </div>
+  </body>
+  <script src="script.js"></script>
+</html>

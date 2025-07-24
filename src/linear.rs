@@ -12,6 +12,7 @@ use serde::{Serialize, Deserialize};
 #[pyclass]
 #[derive(Serialize, Deserialize)]
 pub struct LinearModel {
+    model_name:String,
     #[pyo3(get, set)]
     pub weights: Vec<Vec<f64>>,
     #[pyo3(get, set)]
@@ -44,6 +45,7 @@ impl LinearModel {
         // let dim = x[0].len() + 1;
         // let weights = (0..dim).map(|_| rand::random::<f64>()).collect();
         LinearModel {
+            model_name:String::from("LinearModel"),
             weights: vec![vec![]],
             train_loss: vec![],
             test_loss: vec![],
@@ -84,6 +86,18 @@ impl LinearModel {
         let file = std::fs::File::open(path).map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
         let model: LinearModel = serde_json::from_reader(file).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
         Ok(model)
+    }
+
+        
+    #[staticmethod]
+    pub fn load_string(json_string: &str) -> PyResult<Self> {
+        let model: LinearModel = serde_json::from_str(json_string).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(model)
+    }
+
+    pub fn save_string(&self) -> PyResult<String> {
+        let json_string = serde_json::to_string_pretty(&self).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(json_string)
     }
 
     // pub fn predict_proba(&self, py: Python<'_>, x: Vec<f64>) -> PyResult<PyObject> {

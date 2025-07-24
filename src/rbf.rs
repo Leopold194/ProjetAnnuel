@@ -13,6 +13,7 @@ use serde::{Serialize, Deserialize};
 #[pyclass]
 #[derive(Serialize, Deserialize)]
 pub struct RBF {
+    model_name:String,
     #[pyo3(get, set)]
     pub weights: Vec<Vec<f64>>,
     #[pyo3(get, set)]
@@ -62,6 +63,7 @@ impl RBF {
         // let weights = (0..dim).map(|_| rand::random::<f64>()).collect();
         
         RBF {
+            model_name:String::from("RBF"),
             weights: vec![vec![]],
             train_loss: vec![],
             test_loss: vec![],
@@ -114,6 +116,12 @@ impl RBF {
     pub fn load(path: &str) -> PyResult<Self> {
         let file = std::fs::File::open(path).map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
         let model: RBF = serde_json::from_reader(file).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(model)
+    }
+
+    #[staticmethod]
+    pub fn load_string(json_string: &str) -> PyResult<Self> {
+        let model: RBF = serde_json::from_str(json_string).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
         Ok(model)
     }
 
