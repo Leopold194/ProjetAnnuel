@@ -35,10 +35,6 @@
       "matches": ["https://www.programme-tv.net/*"]
     },
     {
-      "js": ["foreground/netflix.js"],
-      "matches": ["https://www.netflix.com/*"]
-    },
-    {
       "js": ["foreground/programmetv.js"],
       "matches": ["https://www.programme-tv.net/*"]
     },
